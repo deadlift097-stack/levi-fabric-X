@@ -1,0 +1,214 @@
+{
+  "sha256": "4de40e1dcbbca6d4773af57fa6753afd991b95878bc5d51dcceaebf0d65283d8",
+  "build_id": null,
+  "mc_version_string": "1.26.62.01_RC0 (unconfirmed)",
+  "abi": "arm64-v8a",
+  "vtables": {
+    "Item": [
+      {
+        "vptr_rva": "0x13d9a680",
+        "slots": 133
+      }
+    ],
+    "Actor": [
+      {
+        "vptr_rva": "0x13cf5d40",
+        "slots": 137
+      }
+    ],
+    "Mob": [
+      {
+        "vptr_rva": "0x13cc5328",
+        "slots": 175
+      }
+    ],
+    "Player": [
+      {
+        "vptr_rva": "0x13d43330",
+        "slots": 181
+      }
+    ],
+    "LocalPlayer": [
+      {
+        "vptr_rva": "0x139f74e0",
+        "slots": 247
+      }
+    ],
+    "ServerPlayer": [
+      {
+        "vptr_rva": "0x13c7c690",
+        "slots": 249
+      }
+    ],
+    "SurvivalMode": [
+      {
+        "vptr_rva": "0x13d22f58",
+        "slots": 21
+      }
+    ],
+    "BlockType": [
+      {
+        "vptr_rva": "0x13ded6f0",
+        "slots": 134
+      }
+    ],
+    "Block": [
+      {
+        "vptr_rva": "0x13dfc700",
+        "slots": 2
+      }
+    ],
+    "Level": [
+      {
+        "vptr_rva": "0x13e0a750",
+        "slots": 143
+      },
+      {
+        "vptr_rva": "0x13e0b448",
+        "slots": 10
+      },
+      {
+        "vptr_rva": "0x13e0b4a8",
+        "slots": 23
+      }
+    ],
+    "Container": [
+      {
+        "vptr_rva": "0x13d073c8",
+        "slots": 3
+      }
+    ],
+    "BlockActor": [
+      {
+        "vptr_rva": "0x13e408d0",
+        "slots": 28
+      }
+    ],
+    "BlockSource": [
+      {
+        "vptr_rva": "0x13d6e328",
+        "slots": 67
+      }
+    ],
+    "Minecraft": [
+      {
+        "vptr_rva": "0x13d076b8",
+        "slots": 8
+      }
+    ],
+    "ClientInstance": [
+      {
+        "vptr_rva": "0x138904b0",
+        "slots": 400
+      },
+      {
+        "vptr_rva": "0x13891260",
+        "slots": 1
+      },
+      {
+        "vptr_rva": "0x13891278",
+        "slots": 6
+      },
+      {
+        "vptr_rva": "0x138912b8",
+        "slots": 11
+      },
+      {
+        "vptr_rva": "0x13891320",
+        "slots": 5
+      },
+      {
+        "vptr_rva": "0x13891358",
+        "slots": 3
+      }
+    ],
+    "ScreenController": [
+      {
+        "vptr_rva": "0x138c7818",
+        "slots": 40
+      }
+    ],
+    "LevelRenderer": [
+      {
+        "vptr_rva": "0x13a555c0",
+        "slots": 36
+      },
+      {
+        "vptr_rva": "0x13a556f0",
+        "slots": 22
+      }
+    ],
+    "ItemStack": [
+      {
+        "vptr_rva": "0x13d96650",
+        "slots": 9
+      }
+    ],
+    "ItemStackBase": [
+      {
+        "vptr_rva": "0x13d93b40",
+        "slots": 2
+      }
+    ],
+    "Dimension": [
+      {
+        "vptr_rva": "0x13e0d530",
+        "slots": 11
+      },
+      {
+        "vptr_rva": "0x13e0d6d8",
+        "slots": 32
+      },
+      {
+        "vptr_rva": "0x13e0d7e8",
+        "slots": 4
+      },
+      {
+        "vptr_rva": "0x13e0d818",
+        "slots": 2
+      }
+    ]
+  },
+  "verified_item_slots": {
+    "getMaxUseDuration": {
+      "msvc": 5,
+      "android": 6,
+      "evidence": "ldr w0,[x0,#0x114]; ret"
+    },
+    "setMaxDamage": {
+      "msvc": 24,
+      "android": 27,
+      "evidence": "strh w1,[x0,#0x110]; ret"
+    },
+    "canBeDepleted": {
+      "msvc": 30,
+      "android": 33,
+      "evidence": "reads short@0x110 >0 and flag@0x112 bit2"
+    },
+    "getMaxDamage": {
+      "msvc": 34,
+      "android": 37,
+      "evidence": "ldrh w0,[x0,#0x110]; ret"
+    },
+    "getAttackDamage": {
+      "msvc": 35,
+      "android": 38,
+      "evidence": "mov w0,wzr; ret (int 0 default)"
+    },
+    "getAttackDamageBonus": {
+      "msvc": 36,
+      "android": 39,
+      "evidence": "movi d0,#0; ret (float 0 default)"
+    },
+    "isHandEquipped": {
+      "msvc": 37,
+      "android": 40,
+      "evidence": "ldrb [x0,#0x112]; ubfx #1"
+    }
+  },
+  "item_field_offsets_verified": {
+    "maxDamage_short": "0x110",
+    "itemFlags_byte": "0x112",
+    "maxUseDuration_int": "0x114"
+  }
+}

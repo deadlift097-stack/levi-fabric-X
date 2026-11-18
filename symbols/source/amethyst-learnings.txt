@@ -1,0 +1,1194 @@
+=====================================================================
+ WHAT I LEARNED FROM Amethyst-2.2.1.zip  -> HOW IT SOLVES THE GAPS
+ (Mixins / Java API calls / custom item+block logic / gameplay+render)
+ For: levipack-forge (Java mod -> .levipack for LeviLauncher Android)
+=====================================================================
+
+0. READ THIS FIRST - WHAT THE ZIP IS AND IS NOT
+---------------------------------------------------------------------
+* Amethyst 2.2.1 is a native-mod runtime for Minecraft Bedrock
+  1.21.0.3 on WINDOWS (x86-64, MSVC, PE files, UWP/GDK). mod.json says
+  platforms: "win-client". It builds with xmake + MSVC + SafetyHook.
+* It contains NO binaries (no .dll/.so/.lib) - source only.
+* So: none of its byte signatures or 0x... addresses work on Android
+  (ARM64, ELF libminecraftpe.so). Do NOT copy them.
+* What IS reusable (and valuable):
+    A. The architecture (events, hook manager, importer, packs, UI).
+    B. ~467 headers with real game class/function declarations:
+       exact function names, parameter types, return types, and
+       virtual-function indices (@vidx) for MC 1.21.0.3.
+    C. A verified list of ~35 game functions that are hooked
+       successfully in a shipping runtime (section 4).
+    D. A clean model for the "--symbols index" (section 6).
+* Biggest open question: does your LeviLauncher Android build use
+  1.21.0.3? If not, names still mostly hold across versions, but
+  vtable indices and signatures must be re-derived from YOUR
+  libminecraftpe.so (build-id specific).
+
+1. HOW AMETHYST'S PIECES WORK (and the converter equivalent)
+---------------------------------------------------------------------
+1.1 Importer (the "symbols" system)  <- most important idea
+  * Game functions/variables are declared in C++ headers with the MC
+    macro (dllimport) and an annotation comment:
+        /// @sig {48 89 5C 24 ? 55 56 57 ...}    byte pattern, ? = wildcard
+        /// @address {0x59EF9F8}                  fixed RVA for one build
+        /// @vidx {035}                           virtual table slot
+        /** @vtable */ / MC static uintptr_t $vtable_for_this;
+        /// @symbols  or  /// @symbolgeneration  (file-level markers)
+    A sig can be scoped: "{pattern, win-server}" (per-platform).
+  * Build step (mod_build.lua): Amethyst.SymbolGenerator parses the
+    headers with clang -> *.symbols.json; LibraryGenerator makes an
+    import .lib; ModuleTweaker patches the mod binary so imports
+    resolve at load time. At runtime the PEImporter reads the symbol
+    records (V1 PEFunctionSymbol fields: IsDestructor, IsVirtual,
+    VirtualIndex, VirtualTable, IsSignature, Signature, Address) and
+    fills in the real addresses by sig-scan (libhat), address, or
+    vtable lookup.
+  * Result: mod code just writes  &Item::getAttackDamage  and calls
+    game functions like normal C++ - no manual address plumbing.
+  => For the converter: generate the same kind of table. Keep headers
+     (or a JSON) as the single source of truth: class, method, params,
+     kind {sig|address|virtual|vtable|dlsym}, per MC build-id.
+
+1.2 HookManager / InlineHook
+  * HOOK(Class, fn)   -> inline hook a normal function.
+  * VHOOK(Class, fn, vtableFor) -> hook a virtual function by
+    reading the vtable entry (GetVirtualFunctionOffset<fn>()).
+  * Also supports hooking $constructor / $destructor pseudo-symbols
+    (Minecraft::$constructor, ClientInstance::$constructor).
+  * Hook pattern (this is exactly what a Mixin becomes):
+        InlineHook<decltype(&Cls::fn)> _Cls_fn;       // trampoline
+        R Cls_fn(Cls* self, Args...) {
+            /* "HEAD" code */
+            R r = _Cls_fn(self, args...);             // call original
+            /* "RETURN" code */
+            return r;
+        }
+        HOOK(Cls, fn);
+  * Caveat they document: two mods hooking the same function via the
+    raw absolute API conflict; use the shared hook API.
+  * Mixin.hpp / Mixin.cpp in the zip are 7-byte stubs ("/// WIP").
+    Amethyst has NO real mixin system - the transpiler idea is new
+    territory, so the table in section 3 is the design to implement.
+  * ANDROID NOTE: SafetyHook is x86-only. On ARM64 use whatever hook
+    API the LeviLauncher template already exposes; otherwise Dobby,
+    ShadowHook or And64InlineHook are the usual choices. (I haven't
+    verified which the template uses - check before choosing.)
+
+1.3 EventBus (decouple hooks from mod code)
+  * One tiny typed bus: AddListener<Event>(fn), Invoke(event),
+    ReverseInvoke(event); CancelableEvent has Cancel()/IsCanceled().
+  * Runtime hooks fire events; mods only subscribe. Events present:
+      Register*:  RegisterItemsEvent(ItemRegistry&, CreativeItemRegistry&)
+                  RegisterBlocksEvent(BlockDefinitionGroup&)
+                  InitBlockGraphicsEvent, InitBlockEntityRenderersEvent
+      Game:       OnStartJoinGameEvent, OnRequestLeaveGameEvent,
+                  UpdateEvent(Minecraft&) [per-tick],
+                  OnLevelConstructedEvent, OnLevelDestroyedEvent
+      Rendering:  BeforeRenderUIEvent/AfterRenderUIEvent
+                  (ScreenView&, MinecraftUIRenderContext&),
+                  BeforeRenderLevelEvent/AfterRenderLevelEvent
+      Input:      RegisterInputsEvent, MouseInputEvent (cancelable)
+      UI:         UIButtonHandleEvent
+      Mod:        AddModEventListenersEvent, BeforeModShutdownEvent
+  => For the converter: map Fabric/Forge events onto these (sec. 3).
+     Native converted mods then compile against ONE small event API
+     instead of raw hooks, so the hook set is written once.
+
+1.4 Registering items/blocks (custom content logic)
+  * VanillaItems::registerItems is hooked -> fires RegisterItemsEvent.
+  * BlockDefinitionGroup::registerBlocks is hooked ->
+    RegisterBlocksEvent (event fires BEFORE the original runs, so
+    mod blocks exist before the group is finalized; items fire
+    around registerItems - check src/hooks/shared/ItemRegistry.cpp).
+  * CreativeItemRegistry (AmethystAPI/src/amethyst/game): mods call
+    GetVanillaCategory(Construction/Nature/Equipment/Items/
+    CommandOnly).AddCreativeItem(block). It queues items and the
+    runtime flushes them from hooks on VanillaItems::_addXCategory,
+    so the mod never fights creative-tab timing.
+  => Lesson for the converter: registration order/timing is the
+     classic failure; copy this queue-then-flush design.
+
+1.5 Resource/behavior packs shipped by a mod
+  * Mod folder layout (per mod, versioned):
+      mods/<Name>@<ver>/mod.json
+      mods/<Name>@<ver>/win-client/<mod>.dll
+      mods/<Name>@<ver>/resource_packs/<pack>/manifest.json ...
+      mods/<Name>@<ver>/behavior_packs/<pack>/manifest.json ...
+  * PackManager.RegisterNewPack(mod, path, Resources|Behavior,
+    priority) validates manifest.json (uuid + [x,y,z] version) and
+    remembers it. Priorities Lowest..ExtremelyHigh.
+  * Injection points (all hooked, all verified in 1.21.0.3):
+      ResourcePackRepository::_initializePackSource  -> adds a
+          DirectoryPackSource for each mod's resource_packs/behavior_packs
+      VanillaGameModuleClient::initializeResourceStack (virtual)
+      VanillaGameModuleServer::initializeBehaviorStack (virtual)
+        -> addFromUUID({uuid, version}) on the pack stack
+  => This is how a .levipack can carry textures, models, lang, item
+     and block JSON, recipes, loot, animations with zero code.
+     Check whether LeviLauncher already mounts packs from a mod
+     folder; if not, these 3 hooks are the way.
+
+1.6 UI
+  * Two layers: (a) JSON UI in a resource pack (they author it as
+    TSX via the Regolith-Generators deno lib -> ui/*.json), and
+    (b) native C++ feeding it data:
+      StartMenuScreenController::_registerBindings hook ->
+        self->bindString(StringHash("#amethyst_version"), getter, enabled)
+      JSON UI label then uses  text_binding "#amethyst_version".
+      ScreenController::_handleButtonEvent hook -> UIButtonHandleEvent
+        (buttons clicked in JSON UI reach native code).
+      ScreenView::setupAndRender hook -> Before/AfterRenderUIEvent
+        (immediate-mode drawing with MinecraftUIRenderContext).
+  => This is the exact recipe for your Forge Menu / Better-Bedrock
+     style Mods/Editor/Settings screens: JSON UI pack for layout +
+     bindString for the mod list + button events for toggles.
+     NinesliceHelper.hpp in amethyst/ui helps with 9-slice drawing.
+
+1.7 Input
+  * HOOKs: InputHandler::handleButtonEvent, MouseDevice::feed,
+    VanillaClientInputMappingFactory::_addFullKeyboardGamePlayControls,
+    _createScreenKeyboardAndMouseMapping, and a virtual hook on
+    createInputMappingTemplates. InputManager registers custom
+    actions (RegisterInputsEvent) -> custom keybinds.
+  => Java KeyBinding mods map here.
+
+1.8 Networking
+  * MinecraftPackets::createPacket and
+    ServerNetworkHandler::allowIncomingPacketId are hooked;
+    CustomPacket.hpp / NetworkManager.cpp let a mod define its own
+    packets (client<->server mods).
+
+1.9 Mod loader / manifest model
+  * mod.json (format_version 1.2.0): meta{uuid, namespace, name,
+    version, author(s), is_runtime, platforms{win-client:{}},
+    dependencies with {uuid|namespace, range, soft}}.
+  * ModGraph resolves dependency order and rejects bad graphs;
+    ModError enumerates failure kinds; ModInfo holds versioned name
+    "<Name>@<ver>"; ModRepository scans folders; Version.hpp has
+    semver ranges.
+  => Good template for the .levipack manifest: uuid, namespace,
+     version, per-platform entries (add android-arm64), soft/hard
+     deps, mc-build compatibility list (see 6).
+
+1.10 Misc useful utilities (amethyst/Memory.*)
+  * SigScan with wildcards (libhat), SlideAddress(rva) = base+rva,
+    GetEffectiveAddress(addr): decodes lea/call/jmp RIP-relative to
+    the real target. Several sigs in headers start with E8 (call) -
+    i.e. they anchor on a CALL SITE and resolve its target, which
+    works when the callee's own prologue isn't unique.
+    ARM64 equivalent: anchor on a BL imm26 and resolve it.
+  * FindOffsetOfPointer(base, ptr, maxSize): finds a member offset by
+    scanning an object for a known pointer - handy to discover field
+    offsets at runtime when headers disagree with the build.
+  * CompareVirtualTables(lhs, rhs, n): diffs two vtables - used to
+    discover which slots a subclass overrides.
+  * PatchManager.ApplyPatch(addr, bytes) with automatic restore on
+    shutdown - for constant/byte patches (see @ModifyConstant below).
+
+2. WHY THIS DIRECTLY ADDRESSES YOUR "CAN'T CONVERT" LIST
+---------------------------------------------------------------------
+Your four blockers and what the zip gives you for each:
+
+ (a) MIXINS
+     No ready mixin engine, but the HOOK pattern in 1.2 is a 1:1
+     target for each Mixin annotation (table in section 3). The
+     transpiler's job becomes:  Mixin target class+method  ->
+     lookup in the symbols DB  ->  emit hook skeleton in the
+     pattern above. If the symbol exists, it's a generated hook;
+     if not, it becomes a TODO that names exactly what's missing.
+
+ (b) MINECRAFT JAVA API CALLS
+     Java names (Entity, PlayerEntity, ItemStack, World...) map to
+     Bedrock classes (Actor, Player, ItemStack, Level/BlockSource).
+     The headers give the exact Bedrock method names/params, so a
+     mapping table "Fabric API method -> Bedrock method" can be
+     written against real declarations (e.g. Actor::teleportTo,
+     Mob::knockback, Player::attack, GameMode::destroyBlock).
+
+ (c) CUSTOM ITEM/BLOCK LOGIC
+     Split in two:
+       - Data-driven part  -> emit behavior/resource pack JSON
+         (item/block definitions, textures, lang, recipes) and ship
+         it as a pack (1.5). No hook needed.
+       - Code part (onUse, onBreak, tick, interactions) -> virtuals
+         on Item / BlockLegacy / GameMode, listed with indices in
+         the appendix (e.g. Item::getAttackDamage vidx 35,
+         BlockLegacy::onFillBlock 53, GameMode::useItemOn).
+
+ (d) GAMEPLAY / RENDERING CHANGES
+     Gameplay: Actor::_hurt, Mob::knockback, Item::getAttackDamage,
+     Player::getSpeed, GameMode::* (section 3 + appendix).
+     Rendering: LevelRenderer::renderLevel (before/after),
+     ScreenView::setupAndRender, BlockGraphics::initBlocks,
+     BlockActorRenderDispatcher::initializeBlockEntityRenderers.
+     Anything needing a different shader/pipeline is still manual.
+
+3. MIXIN / JAVA-EVENT  ->  BEDROCK HOOK MAPPING TABLE
+---------------------------------------------------------------------
+3.1 Mixin annotation -> C++ hook shape
+  @Inject  at HEAD            : code before calling _orig()
+  @Inject  at RETURN          : code after _orig(); may read result
+  @Inject  cancellable        : if (cancel) return default; (skip _orig)
+  @Inject  at INVOKE/other    : usually a hook on the CALLEE instead
+                                (or a mid-function patch - manual)
+  @ModifyArg / @ModifyVariable: alter the parameter, then _orig(...)
+  @ModifyReturnValue          : r = _orig(...); return f(r);
+  @ModifyConstant             : byte patch via PatchManager (manual,
+                                per-build) or hook the consumer
+  @Redirect                   : hook the callee; filter by caller
+  @Overwrite                  : hook, never call _orig
+  @Accessor / @Invoker        : field offset / direct function ptr
+                                from the symbols DB
+  Mixin on a class (new fields): keep a side table keyed by object
+                                pointer (std::unordered_map<void*,T>);
+                                you cannot add fields to a game class.
+
+3.2 Java concept -> known-good Bedrock hook (1.21.0.3 names)
+  Mod init / tick ................ Minecraft::update (UpdateEvent),
+                                   Actor::normalTick, GameMode::tick
+  World load/unload .............. ClientInstance::onStartJoinGame,
+                                   ClientInstance::requestLeaveGame,
+                                   OnLevelConstructed/Destroyed
+  Register items / blocks ........ VanillaItems::registerItems,
+                                   BlockDefinitionGroup::registerBlocks
+  Creative tab entries ........... VanillaItems::_add*Category hooks
+  Attack damage of a weapon ...... Item::getAttackDamage (vidx 35),
+                                   Item::getAttackDamageBonus (36)
+  Attack another entity .......... GameMode::attack, Player::attack,
+                                   Mob::attack (Actor::attack)
+  Damage taken / cancel damage ... Actor::_hurt / Mob::_hurt (the
+                                   float param is the damage; return
+                                   false to cancel)
+  Knockback ...................... Mob::knockback(Actor*, int, float x5)
+  Death / kill ................... Mob::die, Mob::kill
+  Player speed ................... Player::getSpeed
+  Break block .................... GameMode::startDestroyBlock,
+                                   continueDestroyBlock, destroyBlock
+  Place block / use item on block  GameMode::buildBlock, useItemOn
+  Use item ....................... GameMode::useItem, Item use virtuals
+  Interact with entity ........... GameMode::interact
+  Hover tooltip text ............. Item::appendFormattedHovertext
+                                   (vtable hook, already proven)
+  HUD / overlay drawing .......... ScreenView::setupAndRender
+  World rendering ................ LevelRenderer::renderLevel
+  Custom screens / buttons ....... StartMenuScreenController::
+                                   _registerBindings,
+                                   ScreenController::_handleButtonEvent
+  Keybinds ....................... RegisterInputsEvent + InputHandler
+  Custom packets ................. MinecraftPackets::createPacket
+  Add textures/models/lang ....... pack injection (1.5)
+
+3.3 Tier system the converter should use for every Java construct
+  T0  Pure data -> pack JSON (items, blocks, recipes, loot, lang,
+      textures, models, animations/animation controllers). Your
+      "punch animation on hit" example lives here.
+  T1  Known hook in the symbols DB -> generated C++ (this table).
+  T2  Hook exists in headers but no signature for this build ->
+      generated C++ + a precise "resolve me" entry in the symbols
+      request list (class, method, param types, vidx).
+  T3  No known target / mid-function / new field / shader ->
+      TODO stub with the Java source embedded as a comment.
+  Only T3 is left for hand-writing; T2 needs only a symbol lookup.
+
+3.4 Things that may avoid native hooks entirely (NOT from the zip -
+    general Bedrock knowledge; verify on your build)
+  * Entity JSON overrides in a behavior pack can change many mob
+    stats/attacks without code; custom-item components (damage,
+    durability, food, etc.) handle new-item stats.
+  * The Bedrock Script API (GameTest) may cover events like entity
+    hurt / block break / item use for simple logic, if LeviLauncher
+    can enable it. Worth testing before writing native hooks.
+  * Vanilla item stat changes ("change attack damage" on a vanilla
+    sword) generally cannot be done by packs -> needs the
+    Item::getAttackDamage hook.
+
+4. HOOKS AMETHYST ACTUALLY SHIPS (verified on Windows 1.21.0.3)
+---------------------------------------------------------------------
+Normal functions:
+  BlockActorRenderDispatcher::initializeBlockEntityRenderers
+  BlockDefinitionGroup::registerBlocks      BlockGraphics::initBlocks
+  ClientInstance::$constructor / onStartJoinGame / requestLeaveGame
+  InputHandler::handleButtonEvent           LevelRenderer::renderLevel
+  Minecraft::$constructor / $destructor / update
+  MinecraftPackets::createPacket            MouseDevice::feed
+  ResourcePackRepository::_initializePackSource
+  ScreenController::_handleButtonEvent      ScreenView::setupAndRender
+  ServerNetworkHandler::allowIncomingPacketId
+  StartMenuScreenController::_registerBindings
+  VanillaClientInputMappingFactory::_addFullKeyboardGamePlayControls
+  VanillaClientInputMappingFactory::_createScreenKeyboardAndMouseMapping
+  VanillaItems::registerItems and _add{CommandOnly,Construction,
+    Equipment,Items,Nature}Category
+Virtual (via vtable):
+  Item::appendFormattedHovertext
+  VanillaClientInputMappingFactory::createInputMappingTemplates
+  VanillaGameModuleClient::initializeResourceStack
+  VanillaGameModuleServer::initializeBehaviorStack
+These are the best "first 35" for an Android build: if you can
+resolve just these in your libminecraftpe.so, you get items/blocks
+registration, UI, input, packs, ticking and rendering hooks.
+
+5. WINDOWS (MSVC) -> ANDROID (ARM64, Itanium ABI) PITFALLS
+---------------------------------------------------------------------
+Everything in the headers must be re-validated on Android:
+ 1. Name mangling: PE uses MSVC "?..." names, Android uses Itanium
+    "_ZN...". If libminecraftpe.so keeps symbols in .dynsym you can
+    dlsym; the packs you studied were stripped, so expect to need
+    vtable/sig/address resolution instead.
+ 2. Vtable layout: Itanium vptr points past 2 header words
+    (offset-to-top, typeinfo); the destructor takes TWO slots
+    (complete + deleting), so every MSVC @vidx after 000 shifts +1
+    on Android. MSVC groups overloaded virtuals together in
+    reverse declaration order (you can see it in BlockLegacy:
+    vidx 016 listed before 015); Itanium uses plain declaration
+    order. Re-derive indices; don't trust @vidx blindly.
+ 3. Calling convention: x64 vs AAPCS64. `this` is x0 on ARM64;
+    large struct returns use x8; small float aggregates (Vec3)
+    come back in s0-s2 while MSVC returns them via hidden pointer.
+    Hook signatures must match the real ABI.
+ 4. STL layout: MSVC std::string is 32 bytes, libc++ (Android) is
+    24; std::function, unordered_map, shared_ptr internals differ
+    too. Member OFFSETS in the Amethyst headers (which include such
+    types) are wrong on Android. Field names/order are still good
+    hints; recompute offsets (FindOffsetOfPointer trick, or
+    disassembly of a getter).
+ 5. Instruction patterns: x64 byte sigs are meaningless on ARM64.
+    ARM64 is fixed 4-byte instructions - build sigs from the first
+    N instructions and MASK pc-relative bits (ADRP/ADD immediates,
+    BL/B imm26, LDR literal, CBZ/TBZ offsets).
+ 6. Version drift: Amethyst targets 1.21.0.3 only. Key everything
+    by (mc_version, ABI, ELF build-id) and refuse to hook on a
+    mismatch instead of crashing.
+
+6. PROPOSED "--symbols" INDEX (modelled on Amethyst's symbols.json)
+---------------------------------------------------------------------
+{
+  "schema": 1,
+  "mc_version": "<yours>", "abi": "arm64-v8a",
+  "build_id": "<NT_GNU_BUILD_ID of libminecraftpe.so>",
+  "functions": {
+    "Item::getAttackDamage": {
+      "kind": "virtual", "vtable": "Item", "index": 36,
+      "ret": "int", "params": [], "const": true },
+    "Minecraft::update": {
+      "kind": "sig", "sig": "FD 7B ?? A9 ...", "anchor": "none" },
+    "ScreenView::setupAndRender": {
+      "kind": "sig", "sig": "...", "anchor": "bl_target" },
+    "ClientInstance::onStartJoinGame": {
+      "kind": "address", "rva": "0x..." }
+  },
+  "vtables": { "Item": { "rva": "0x...", "via": "rtti" } },
+  "offsets": { "Actor::mLevel": "0x..." }
+}
+Resolution order at load: dlsym -> vtable(RTTI)+index -> sig ->
+rva, then self-check (e.g. function prologue looks sane, sig unique).
+If RTTI type names exist in the .so (check with `strings | grep
+-i "N.*ItemE"`), vtables can be found even when stripped: locate the
+typeinfo-name string -> typeinfo object -> vtable that references it.
+I have not confirmed the Android build keeps RTTI; that's a quick
+check on your .so.
+
+7. CONCRETE NEXT STEPS
+---------------------------------------------------------------------
+ 1. Upload (or re-upload here) libminecraftpe.so for the exact
+    build you run, and tell me the MC version. With it I can:
+      - read build-id, check .dynsym, check for RTTI strings,
+      - find vtables, translate the @vidx tables (appendix) to
+        Itanium indices, and emit symbols.json for the ~35 hooks
+        in section 4 first,
+      - write an ARM64 sig generator (mask pc-relative bits,
+        verify uniqueness) so new targets cost minutes.
+ 2. Add to levipack-forge: hook catalog (section 3.2), tier
+    classifier (3.3), Mixin->hook emitter (3.1), pack emitter for
+    T0 content, symbols loader (section 6).
+ 3. Port the event layer (1.3) + queue-then-flush creative
+    registry (1.4) so converted mods compile against stable events.
+ 4. For the Forge Menu: JSON UI pack + bindString + button event
+    hooks (1.6).
+
+APPENDIX A - VTABLE INDICES FROM THE HEADERS (MSVC, MC 1.21.0.3)
+---------------------------------------------------------------------
+Translate before use on Android (see section 5.2). Not every virtual
+carries @vidx in the headers (e.g. Actor::_hurt, Actor::attack and
+GameMode virtuals are listed in source order without an index) - for
+those, count declaration order in the header or derive it from the
+binary. Signature text is trimmed.
+
+--- Item  (src/common/world/item/Item.hpp, 119 annotated virtuals; MSVC vtable index)
+  [000] ~Item()
+  [001] bool initServer(const Json::Value& config, const SemVersion& version, bool unk2, const Experiments& experiments)
+  [002] void tearDown()
+  [003] Item& setDescriptionId(const std::string& descriptionId)
+  [004] const std::string& getDescriptionId() const
+  [005] int getMaxUseDuration(const ItemStack* item) const
+  [006] bool isMusicDisk() const
+  [007] void executeEvent(ItemStackBase& stack, const std::string& eventName, RenderParams& renderParams) const
+  [008] bool isComponentBased() const
+  [009] bool isHumanoidArmor() const
+  [010] bool isBlockPlanterItem() const
+  [011] bool isBucket() const
+  [012] bool isCandle() const
+  [013] bool isDamageable() const
+  [014] bool isDyeable() const
+  [015] bool isDye() const
+  [016] ItemColor getItemColor() const
+  [017] bool isFertilizer() const
+  [018] bool isFood() const
+  [019] bool isThrowable() const
+  [020] bool isUseable() const
+  [021] bool isTrimAllowed() const
+  [022] ItemComponent* getComponent(const HashedString& componentName) const
+  [023] IFoodItemComponent* getFood() const
+  [024] Item& setMaxDamage(int maxDamage)
+  [025] Item& setMaxUseDuration(int duration)
+  [026] std::unique_ptr<CompoundTag> buildNetworkTag() const
+  [027] void initializeFromNetwork(const CompoundTag& userData)
+  [028] std::vector<std::string> validateFromNetwork(const CompoundTag& userData)
+  [029] BlockShape getBlockShape() const
+  [030] bool canBeDepleted() const
+  [031] bool canDestroySpecial(const Block& block) const
+  [032] int getLevelDataForAuxValue(int auxValue) const
+  [033] bool isStackedByData() const
+  [034] short getMaxDamage() const
+  [035] int getAttackDamage() const
+  [036] float getAttackDamageBonus(const Actor& actor, float unk1) const
+  [037] bool isHandEquipped() const
+  [038] bool isGlint(const ItemStackBase& stack) const
+  [039] bool isPattern() const
+  [040] int getPatternIndex() const
+  [041] bool showsDurabilityInCreative() const
+  [042] bool isWearableThroughLootTable(const CompoundTag* unk0) const
+  [043] bool canDestroyInCreative() const
+  [044] bool isDestructive(int unk0) const
+  [045] bool isLiquidClipItem() const
+  [046] bool shouldInteractionWithBlockBypassLiquid(const Block& block) const
+  [047] bool requiresInteract() const
+  [048] void appendFormattedHovertext(const ItemStackBase& stack, Level& level, std::string& outText, bool showCategory) co
+  [049] bool isValidRepairItem(const ItemStackBase& targetStack, const ItemStackBase& repairStack, const BaseGameVersion& v
+  [050] int getEnchantSlot() const
+  [051] int getEnchantValue() const
+  [052] int getArmorValue() const
+  [053] int getToughnessValue() const
+  [054] Puv::Legacy::LevelSoundEvent getBreakSound() const
+  [055] bool isComplex() const
+  [056] bool isValidAuxValue(int auxValue) const
+  [057] int getDamageChance(int unk0) const
+  [058] float getViewDamping() const
+  [059] bool uniqueAuxValues() const
+  [060] bool isActorPlacerItem() const
+  [061] bool isMultiColorTinted(const ItemStack& stack) const
+  [062] mce::Color getColor(const CompoundTag* unk0, const ItemDescriptor& descriptor) const
+  [063] bool hasCustomColor(const CompoundTag* unk0) const
+  [064] bool hasCustomColor(const ItemStackBase& stack) const
+  [065] void clearColor(ItemStackBase& stack) const
+  [066] void setColor(ItemStackBase& stack, const mce::Color& color) const
+  [067] mce::Color getBaseColor(const ItemStack& stack) const
+  [068] mce::Color getSecondaryColor(const ItemStack& stack) const
+  [069] ActorDefinitionIdentifier getActorIdentifier(const ItemStack& stack) const
+  [070] int buildIdAux(short unk0, const CompoundTag* unk1) const
+  [071] bool canUseOnSimTick() const
+  [072] ItemStack& use(ItemStack& stack, Player& player) const
+  [073] Actor* createProjectileActor(BlockSource& source, const ItemStack& stack, const Vec3& pos, const Vec3& velocity) co
+  [074] bool dispense(BlockSource& source, Container& container, int slot, const Vec3& pos, FacingID facing) const
+  [075] ItemUseMethod useTimeDepleted(ItemStack& stack, Level* level, Player* player) const
+  [076] void releaseUsing(ItemStack& stack, Player* player, int duration) const
+  [077] float getDestroySpeed(const ItemStackBase& stack, const Block& block) const
+  [078] void hurtActor(ItemStack& stack, Actor& actor, Mob& attacker) const
+  [079] void hitActor(ItemStack& stack, Actor& actor, Mob& attacker) const
+  [080] void hitBlock(ItemStack& stack, const Block& block, const BlockPos& pos, Mob& mob) const
+  [081] bool mineBlock(ItemStack& stack, const Block& block, int x, int y, int z, Actor* owner) const
+  [082] std::string buildDescriptionName(const ItemStackBase& stack) const
+  [083] std::string buildDescriptionId(const ItemDescriptor& descriptor, const CompoundTag* tag) const
+  [084] std::string buildEffectDescriptionName(const ItemStackBase& stack) const
+  [085] void readUserData(ItemStackBase& stack, IDataInput& input, ReadOnlyBinaryStream& stream) const
+  [086] void writeUserData(const ItemStackBase& stack, IDataOutput& output) const
+  [087] uint8_t getMaxStackSize(const ItemDescriptor& descriptor) const
+  [088] bool inventoryTick(ItemStack& stack, Level& level, Actor& actor, int unk3, bool unk4) const
+  [089] void refreshedInContainer(const ItemStackBase& stack, Level& level) const
+  [090] const HashedString& getCooldownType() const
+  [091] int getCooldownTime() const
+  [092] void fixupCommon(ItemStackBase& stack, Level& level) const
+  [093] void fixupCommon(ItemStackBase& stack) const
+  [094] InHandUpdateType getInHandUpdateType(const Player& player, const ItemStack& currentStack, const ItemStack& prevStac
+  [095] bool validFishInteraction(int unk0) const
+  [096] void enchantProjectile(const ItemStackBase& stack, Actor& actor) const
+  [097] ActorLocation getEquipLocation() const
+  [098] Puv::Legacy::LevelSoundEvent getEquipSound() const
+  [099] bool shouldSendInteractionGameEvents() const
+  [100] bool useInterruptedByAttacking() const
+  [101] bool hasSameRelevantUserData(const ItemStackBase& stack, const ItemStackBase& prevStack) const
+  [102] void initClient(const Json::Value& config, const SemVersion& version, bool unk2, const Experiments& experiments)
+  [103] Item& setIconInfo(const std::string& iconName, int iconFrame)
+  [104] ResolvedItemIconInfo getIconInfo(const ItemStackBase& stack, int unk1, bool unk2) const
+  [105] std::string getInteractText(const Player& player) const
+  [106] int getAnimationFrameFor(Mob* mob, bool unk1, const ItemStack* stack, bool unk3) const
+  [107] bool isEmissive(int unk0) const
+  [108] Brightness getLightEmission(int unk0) const
+  [109] int getIconYOffset() const
+  [110] bool canBeCharged() const
+  [111] void playSoundIncrementally(const ItemStack& stack, Mob& mob) const
+  [112] float getFurnaceXPmultiplier(const ItemStackBase& stack) const
+  [113] std::string getAuxValuesDescription() const
+  [114] bool calculatePlacePos(ItemStackBase& stack, Actor& actor, FacingID& face, BlockPos& pos) const
+  [115] bool _checkUseOnPermissions(Actor& actor, ItemStackBase& stack, const FacingID& face, const BlockPos& pos) const
+  [116] bool _calculatePlacePos(ItemStackBase& stack, Actor& actor, FacingID& face, BlockPos& pos) const
+  [117] bool _shouldAutoCalculatePlacePos() const
+  [118] InteractionResult _useOn(ItemStack& stack, Actor& actor, BlockPos pos, FacingID face, const Vec3& hit) const
+
+--- Actor  (src/common/world/actor/Actor.hpp, 151 annotated virtuals; MSVC vtable index)
+  [000] 
+  [001] 
+  [002] 
+  [003] 
+  [004] 
+  [005] 
+  [006] 
+  [007] 
+  [008] 
+  [009] 
+  [010] 
+  [011] 
+  [012] 
+  [013] 
+  [014] 
+  [015] 
+  [016] 
+  [017] 
+  [018] 
+  [019] 
+  [020] 
+  [021] 
+  [022] 
+  [023] 
+  [024] 
+  [025] 
+  [026] 
+  [027] 
+  [028] 
+  [029] 
+  [030] 
+  [031] 
+  [032] 
+  [033] 
+  [034] 
+  [035] 
+  [036] 
+  [037] 
+  [038] 
+  [039] 
+  [040] 
+  [041] 
+  [042] 
+  [043] 
+  [044] 
+  [045] 
+  [046] 
+  [047] 
+  [048] 
+  [049] 
+  [050] 
+  [051] 
+  [052] 
+  [053] 
+  [054] 
+  [055] 
+  [056] 
+  [057] 
+  [058] 
+  [059] 
+  [060] 
+  [061] 
+  [062] 
+  [063] 
+  [064] 
+  [065] 
+  [066] 
+  [067] 
+  [068] 
+  [069] 
+  [070] 
+  [071] 
+  [072] 
+  [073] 
+  [074] 
+  [075] 
+  [076] 
+  [077] 
+  [078] 
+  [079] 
+  [080] 
+  [081] 
+  [082] 
+  [083] 
+  [084] 
+  [085] 
+  [086] 
+  [087] 
+  [088] 
+  [089] 
+  [090] 
+  [091] 
+  [092] 
+  [093] 
+  [094] 
+  [095] 
+  [096] 
+  [097] 
+  [098] 
+  [099] 
+  [100] 
+  [101] 
+  [102] 
+  [103] 
+  [104] 
+  [105] 
+  [106] 
+  [107] 
+  [108] 
+  [109] 
+  [110] 
+  [111] 
+  [112] 
+  [113] 
+  [114] 
+  [115] 
+  [116] 
+  [117] 
+  [118] 
+  [119] 
+  [120] 
+  [121] 
+  [122] 
+  [123] 
+  [124] 
+  [125] 
+  [126] 
+  [127] 
+  [128] 
+  [129] 
+  [130] 
+  [131] 
+  [132] 
+  [133] 
+  [134] 
+  [135] 
+  [136] 
+  [137] 
+  [138] 
+  [139] 
+  [140] 
+  [141] 
+  [142] 
+  [143] 
+  [144] 
+  [145] 
+  [146] 
+  [147] 
+  [148] 
+  [149] 
+  [150] 
+
+--- Mob  (src/common/world/actor/Mob.hpp, 87 annotated virtuals; MSVC vtable index)
+  [002] 
+  [003] 
+  [004] 
+  [005] 
+  [006] 
+  [009] 
+  [015] 
+  [016] 
+  [017] 
+  [018] 
+  [021] 
+  [023] 
+  [026] 
+  [027] 
+  [029] 
+  [030] 
+  [043] 
+  [045] 
+  [046] 
+  [048] 
+  [050] 
+  [052] 
+  [055] 
+  [057] 
+  [064] 
+  [070] 
+  [071] 
+  [074] 
+  [078] 
+  [079] 
+  [080] 
+  [081] 
+  [091] 
+  [094] 
+  [098] 
+  [102] 
+  [103] 
+  [108] 
+  [110] 
+  [117] 
+  [130] 
+  [131] 
+  [132] 
+  [144] 
+  [146] 
+  [147] 
+  [148] 
+  [149] 
+  [151] 
+  [152] 
+  [153] 
+  [154] 
+  [155] 
+  [156] 
+  [157] 
+  [158] 
+  [159] 
+  [160] 
+  [161] 
+  [162] 
+  [163] 
+  [164] 
+  [165] 
+  [166] 
+  [167] 
+  [168] 
+  [169] 
+  [170] 
+  [171] 
+  [172] 
+  [173] 
+  [174] 
+  [175] 
+  [176] 
+  [177] 
+  [178] 
+  [179] 
+  [180] 
+  [181] 
+  [182] 
+  [183] 
+  [184] 
+  [185] 
+  [186] 
+  [187] 
+  [188] 
+  [189] 
+
+--- Player  (src/common/world/actor/player/Player.hpp, 65 annotated virtuals; MSVC vtable index)
+  [190] 
+  [191] 
+  [192] 
+  [193] 
+  [194] 
+  [195] 
+  [196] 
+  [197] 
+  [198] 
+  [199] 
+  [200] 
+  [201] 
+  [202] 
+  [203] 
+  [204] 
+  [205] 
+  [206] 
+  [207] 
+  [208] 
+  [209] 
+  [210] 
+  [211] 
+  [212] 
+  [213] 
+  [214] 
+  [215] 
+  [216] 
+  [217] 
+  [218] 
+  [219] 
+  [220] 
+  [221] 
+  [222] 
+  [223] 
+  [224] 
+  [225] 
+  [226] 
+  [227] 
+  [228] 
+  [229] 
+  [230] 
+  [231] 
+  [232] 
+  [233] 
+  [234] 
+  [235] 
+  [236] 
+  [237] 
+  [238] 
+  [239] 
+  [240] 
+  [241] 
+  [242] 
+  [243] 
+  [244] 
+  [245] 
+  [246] 
+  [247] 
+  [248] 
+  [249] 
+  [250] 
+  [251] 
+  [252] 
+  [253] 
+  [254] 
+
+--- GameMode  (src/common/world/gamemode/GameMode.hpp, 19 annotated virtuals; MSVC vtable index)
+  [000] 
+  [001] 
+  [002] 
+  [003] 
+  [004] 
+  [005] 
+  [006] 
+  [007] 
+  [008] 
+  [009] 
+  [010] 
+  [011] 
+  [012] 
+  [013] 
+  [014] 
+  [015] 
+  [016] 
+  [017] 
+  [018] 
+
+--- BlockLegacy  (src/common/world/level/block/BlockLegacy.hpp, 163 annotated virtuals; MSVC vtable index)
+  [000] ~BlockLegacy()
+  [001] std::shared_ptr<BlockActor> newBlockEntity(const BlockPos& unk0, const Block& unk1) const
+  [002] const Block* getNextBlockPermutation(const Block& unk0) const
+  [003] bool hasTag(BlockSource& unk0, const BlockPos& unk1, const Block& unk2, const std::string& unk3) const
+  [004] HitResult clip(const Block& unk0, const BlockSource& unk1, const BlockPos& unk2, const Vec3& unk3, const Vec3& unk4
+  [005] AABB getCollisionShape(const Block& unk0, const IConstBlockSource& unk1, const BlockPos& unk2, optional_ref<const G
+  [006] bool getCollisionShapeForCamera(AABB& unk0, const Block& unk1, const IConstBlockSource& unk2, const BlockPos& unk3)
+  [007] bool addCollisionShapes(const Block& unk0, const IConstBlockSource& unk1, const BlockPos& unk2, const AABB* unk3, s
+  [008] void addAABBs(const Block& unk0, const IConstBlockSource& unk1, const BlockPos& unk2, const AABB* unk3, std::vector
+  [009] const AABB& getOutline(const Block& unk0, const IConstBlockSource& unk1, const BlockPos& unk2, AABB& unk3) const
+  [010] const AABB& getVisualShapeInWorld(const Block& unk0, const IConstBlockSource& unk1, const BlockPos& unk2, AABB& unk
+  [011] const AABB& getVisualShape(const Block& unk0, AABB& unk1) const
+  [012] const AABB& getUIShape(const Block& unk0, AABB& unk1) const
+  [013] bool getLiquidClipVolume(const Block& unk0, BlockSource& unk1, const BlockPos& unk2, AABB& unk3) const
+  [014] bool isObstructingChests(BlockSource& unk0, const BlockPos& unk1, const Block& unk2) const
+  [015] Vec3 randomlyModifyPosition(const BlockPos& unk0) const
+  [016] Vec3 randomlyModifyPosition(const BlockPos& unk0, int& unk1) const
+  [017] void onProjectileHit(BlockSource& unk0, const BlockPos& unk1, const Actor& unk2) const
+  [018] void onLightningHit(BlockSource& unk0, const BlockPos& unk1) const
+  [019] UnknownReturn liquidCanFlowIntoFromDirection(FacingID unk0, const std::function<const Block&(const BlockPos&)>& unk
+  [020] bool hasVariableLighting() const
+  [021] bool isStrippable(const Block& unk0) const
+  [022] const Block& getStrippedBlock(const Block& unk0) const
+  [023] bool canProvideSupport(const Block& unk0, FacingID unk1, BlockSupportType unk2) const
+  [024] bool canProvideMultifaceSupport(const Block& unk0, FacingID unk1) const
+  [025] bool canConnect(const Block& unk0, FacingID unk1, const Block& unk2) const
+  [026] bool isMovingBlock() const
+  [027] const CopperBehavior* tryGetCopperBehavior() const
+  [028] bool canDamperVibrations() const
+  [029] bool canOccludeVibrations() const
+  [030] bool isStemBlock() const
+  [031] bool isContainerBlock() const
+  [032] bool isCraftingBlock() const
+  [033] bool isWaterBlocking() const
+  [034] bool isFenceBlock() const
+  [035] bool isFenceGateBlock() const
+  [036] bool isThinFenceBlock() const
+  [037] bool isWallBlock() const
+  [038] bool isStairBlock() const
+  [039] bool isSlabBlock() const
+  [040] bool isDoubleSlabBlock() const
+  [041] bool isDoorBlock() const
+  [042] bool isRailBlock() const
+  [043] bool isButtonBlock() const
+  [044] bool isLeverBlock() const
+  [045] bool isCandleCakeBlock() const
+  [046] bool isMultifaceBlock() const
+  [047] bool isSignalSource() const
+  [048] bool canBeOriginalSurface() const
+  [049] bool isSilentWhenJumpingOff() const
+  [050] bool isValidAuxValue(int unk0) const
+  [051] bool canFillAtPos(BlockSource& unk0, const BlockPos& unk1, const Block& unk2) const
+  [052] const Block& sanitizeFillBlock(const Block& unk0) const
+  [053] void onFillBlock(BlockSource& unk0, const BlockPos& unk1, const Block& unk2) const
+  [054] int getDirectSignal(BlockSource& unk0, const BlockPos& unk1, int unk2) const
+  [055] bool canBeDestroyedByWaterSpread() const
+  [056] bool waterSpreadCausesSpawn() const
+  [057] bool canContainLiquid() const
+  [058] std::optional<HashedString> getRequiredMedium() const
+  [059] bool shouldConnectToRedstone(BlockSource& unk0, const BlockPos& unk1, Direction::Type unk2) const
+  [060] void handlePrecipitation(BlockSource& unk0, const BlockPos& unk1, float unk2, float unk3) const
+  [061] bool canBeUsedInCommands(const BaseGameVersion& unk0) const
+  [062] bool checkIsPathable(Actor& unk0, const BlockPos& unk1, const BlockPos& unk2) const
+  [063] bool shouldDispense(BlockSource& unk0, Container& unk1) const
+  [064] bool dispense(BlockSource& unk0, Container& unk1, int unk2, const Vec3& unk3, FacingID unk4) const
+  [065] void transformOnFall(BlockSource& unk0, const BlockPos& unk1, Actor* unk2, float unk3) const
+  [066] void onRedstoneUpdate(BlockSource& unk0, const BlockPos& unk1, int unk2, bool unk3) const
+  [067] void onMove(BlockSource& unk0, const BlockPos& unk1, const BlockPos& unk2) const
+  [068] bool detachesOnPistonMove(BlockSource& unk0, const BlockPos& unk1) const
+  [069] void movedByPiston(BlockSource& unk0, const BlockPos& unk1) const
+  [070] void onStructureBlockPlace(BlockSource& unk0, const BlockPos& unk1) const
+  [071] void onStructureNeighborBlockPlace(BlockSource& unk0, const BlockPos& unk1) const
+  [072] void setupRedstoneComponent(BlockSource& unk0, const BlockPos& unk1) const
+  [073] BlockProperty getRedstoneProperty(BlockSource& unk0, const BlockPos& unk1) const
+  [074] void updateEntityAfterFallOn(const BlockPos& unk0, UpdateEntityAfterFallOnInterface& unk1) const
+  [075] bool isBounceBlock() const
+  [076] bool isPreservingMediumWhenPlaced(const BlockLegacy* unk0) const
+  [077] bool isFilteredOut(BlockRenderLayer unk0) const
+  [078] bool canRenderSelectionOverlay(BlockRenderLayer unk0) const
+  [079] bool ignoreEntitiesOnPistonMove(const Block& unk0) const
+  [080] bool onFertilized(BlockSource& unk0, const BlockPos& unk1, Actor* unk2, FertilizerType unk3) const
+  [081] bool mayConsumeFertilizer(BlockSource& unk0) const
+  [082] bool canBeFertilized(BlockSource& unk0, const BlockPos& unk1, const Block& unk2) const
+  [083] bool mayPick(const BlockSource& unk0, const Block& unk1, bool unk2) const
+  [084] bool mayPick() const
+  [085] bool mayPlace(BlockSource& unk0, const BlockPos& unk1) const
+  [086] bool mayPlace(BlockSource& unk0, const BlockPos& unk1, FacingID unk2) const
+  [087] bool mayPlaceOn(BlockSource& unk0, const BlockPos& unk1) const
+  [088] bool tryToPlace(BlockSource& unk0, const BlockPos& unk1, const Block& unk2, const ActorBlockSyncMessage* unk3) cons
+  [089] bool tryToTill(BlockSource& unk0, const BlockPos& unk1, Actor& unk2, ItemStack& unk3) const
+  [090] bool breaksFallingBlocks(const Block& unk0, BaseGameVersion unk1) const
+  [091] void destroy(BlockSource& unk0, const BlockPos& unk1, const Block& unk2, Actor* unk3) const
+  [092] bool getIgnoresDestroyPermissions(Actor& unk0, const BlockPos& unk1) const
+  [093] void neighborChanged(BlockSource& unk0, const BlockPos& unk1, const BlockPos& unk2) const
+  [094] bool getSecondPart(const IConstBlockSource& unk0, const BlockPos& unk1, BlockPos& unk2) const
+  [095] const Block* playerWillDestroy(Player& unk0, const BlockPos& unk1, const Block& unk2) const
+  [096] ItemInstance asItemInstance(const Block& block, const BlockActor* actor) const
+  [097] void spawnAfterBreak(BlockSource& unk0, const Block& unk1, const BlockPos& unk2, const ResourceDropsContext& unk3) 
+  [098] const Block& getPlacementBlock(const Actor& unk0, const BlockPos& unk1, FacingID unk2, const Vec3& unk3, int unk4) 
+  [099] int calcVariant(BlockSource& unk0, const BlockPos& unk1, const mce::Color& unk2) const
+  [100] bool isAttachedTo(BlockSource& unk0, const BlockPos& unk1, BlockPos& unk2) const
+  [101] bool attack(Player* unk0, const BlockPos& unk1) const
+  [102] bool shouldTriggerEntityInside(BlockSource& unk0, const BlockPos& unk1, Actor& unk2) const
+  [103] bool canBeBuiltOver(BlockSource& unk0, const BlockPos& unk1) const
+  [104] bool canBeBuiltOver(BlockSource& unk0, const BlockPos& unk1, const BlockItem& unk2) const
+  [105] void triggerEvent(BlockSource& unk0, const BlockPos& unk1, int unk2, int unk3) const
+  [106] void executeEvent(BlockSource& unk0, const BlockPos& unk1, const Block& unk2, const std::string& unk3, Actor& unk4)
+  [107] const MobSpawnerData* getMobToSpawn(const SpawnConditions& unk0, BlockSource& unk1) const
+  [108] bool shouldStopFalling(Actor& unk0) const
+  [109] bool pushesUpFallingBlocks() const
+  [110] bool canHaveExtraData() const
+  [111] bool hasComparatorSignal() const
+  [112] int getComparatorSignal(BlockSource& blockSource, const BlockPos& pos, const Block& block, FacingID face) const
+  [113] bool canSlide(BlockSource& unk0, const BlockPos& unk1) const
+  [114] bool canInstatick() const
+  [115] bool canSpawnAt(const BlockSource& unk0, const BlockPos& unk1) const
+  [116] void notifySpawnedAt(BlockSource& unk0, const BlockPos& unk1) const
+  [117] bool causesFreezeEffect() const
+  [118] int getIconYOffset() const
+  [119] std::string buildDescriptionId(const Block& unk0) const
+  [120] bool isAuxValueRelevantForPicking() const
+  [121] int getColor(const Block& unk0) const
+  [122] int getColorAtPos(BlockSource& unk0, const BlockPos& unk1) const
+  [123] int getColor(BlockSource& unk0, const BlockPos& unk1, const Block& unk2) const
+  [124] int getColorForParticle(BlockSource& unk0, const BlockPos& unk1, const Block& unk2) const
+  [125] bool isSeasonTinted(const Block& unk0, BlockSource& unk1, const BlockPos& unk2) const
+  [126] void onGraphicsModeChanged(const BlockGraphicsModeChangeContext& unk0)
+  [127] float getShadeBrightness(const Block& unk0) const
+  [128] int telemetryVariant(BlockSource& unk0, const BlockPos& unk1) const
+  [129] int getVariant(const Block& unk0) const
+  [130] bool canSpawnOn(Actor* unk0) const
+  [131] const Block& getRenderBlock() const
+  [132] FacingID getMappedFace(FacingID face, const Block& block) const
+  [133] Flip getFaceFlip(FacingID unk0, const Block& unk1) const
+  [134] void animateTickBedrockLegacy(BlockSource& blockSource, const BlockPos& pos, Random& rand) const
+  [135] void animateTick(BlockSource& unk0, const BlockPos& unk1, Random& unk2) const
+  [136] BlockLegacy& init()
+  [137] Brightness getLightEmission(const Block& unk0) const
+  [138] const Block* tryLegacyUpgrade(unsigned short unk0) const
+  [139] bool dealsContactDamage(const Actor& unk0, const Block& unk1, bool unk2) const
+  [140] const Block* tryGetInfested(const Block& unk0) const
+  [141] const Block* tryGetUninfested(const Block& unk0) const
+  [142] void _addHardCodedBlockComponents(const Experiments& unk0)
+  [143] void onRemove(BlockSource& blockSource, const BlockPos& pos) const
+  [144] void onExploded(BlockSource& unk0, const BlockPos& unk1, Actor* unk2) const
+  [145] void onStandOn(EntityContext& unk0, const BlockPos& unk1) const
+  [146] void onPlace(BlockSource& unk0, const BlockPos& unk1) const
+  [147] bool shouldTickOnSetBlock() const
+  [148] void tick(BlockSource& unk0, const BlockPos& unk1, Random& unk2) const
+  [149] void randomTick(BlockSource& unk0, const BlockPos& unk1, Random& unk2) const
+  [150] bool isInteractiveBlock() const
+  [151] bool use(Player& player, const BlockPos& pos, FacingID face) const
+  [152] bool use(Player& unk0, const BlockPos& unk1, FacingID unk2, std::optional<Vec3> unk3) const
+  [153] bool allowStateMismatchOnPlacement(const Block& unk0, const Block& unk1) const
+  [154] bool canSurvive(BlockSource& unk0, const BlockPos& unk1) const
+  [155] BlockRenderLayer getRenderLayer(const Block& unk0, BlockSource& unk1, const BlockPos& unk2) const
+  [156] BlockRenderLayer getRenderLayer() const
+  [157] int getExtraRenderLayers() const
+  [158] Brightness getLight(const Block& unk0) const
+  [159] Brightness getEmissiveBrightness(const Block& unk0) const
+  [160] mce::Color getMapColor(BlockSource& unk0, const BlockPos& unk1, const Block& unk2) const
+  [161] void _onHitByActivatingAttack(BlockSource& unk0, const BlockPos& unk1, Actor* unk2) const
+  [162] void entityInside(BlockSource& unk0, const BlockPos& unk1, Actor& unk2)
+
+--- ScreenController  (src-client/common/client/gui/screens/ScreenController.hpp, 39 annotated virtuals; MSVC vtable index)
+  [000] ~ScreenController()
+  [001] void preFrameTick()
+  [002] ui::DirtyFlag tick()
+  [003] ui::ViewRequest handleEvent(ScreenEvent&)
+  [004] std::optional<std::string> getRoute()
+  [005] void setScreenState(const std::vector<std::pair<std::string_view, std::string_view>>&)
+  [006] void onOpen()
+  [007] void queueTitleNarration()
+  [008] void onTerminate()
+  [009] void onInit()
+  [010] void onDelete()
+  [011] bool canExit()
+  [012] ui::ViewRequest tryExit()
+  [013] void onCreation()
+  [014] void onReload()
+  [015] void onLeave()
+  [016] void leaveScreen(const std::string&)
+  [017] ui::DirtyFlag handleGameEventNotification(ui::GameEventNotification)
+  [018] bool bind(const std::string& collectionName, uint32_t collectionNameHash, int collectionIndex, const std::string& b
+  [019] bool bind(const std::string&, uint32_t, const std::string&, UIPropertyBag&)
+  [020] void handleLicenseChanged()
+  [021] void onDictationEvent(const std::string&)
+  [022] void setAssociatedBlockPos(const BlockPos&)
+  [023] void setAssociatedEntityUniqueID(const ActorUniqueID)
+  [024] void setSuspendInput(bool)
+  [025] void setViewCommand(const ScreenViewCommand&)
+  [026] void addStaticScreenVars(Json::Value&)
+  [027] std::string getAdditionalScreenInfo()
+  [028] std::string getTelemetryOverride()
+  [029] void addEventProperties(std::unordered_map<std::string, std::string>&)
+  [030] ui::SceneType getSceneType()
+  [031] int getScreenVersion()
+  [032] uint32_t getSceneId()
+  [033] bool screenHandlesGamepadMenuButton()
+  [034] ScreenControllerProxy* getProxy()
+  [035] void onEntered()
+  [036] void onScreenPushedAbove()
+  [037] void onEntering()
+  [038] bool _doesScreenHaveExitBehavior()
+
+--- Container  (src/common/world/Container.hpp, 41 annotated virtuals; MSVC vtable index)
+  [000] 
+  [001] 
+  [002] 
+  [003] 
+  [004] 
+  [005] 
+  [006] 
+  [007] 
+  [008] 
+  [009] 
+  [010] 
+  [011] 
+  [012] 
+  [013] 
+  [014] 
+  [015] 
+  [016] 
+  [017] 
+  [018] 
+  [019] 
+  [020] 
+  [021] 
+  [022] 
+  [023] 
+  [024] 
+  [025] 
+  [026] 
+  [027] 
+  [028] 
+  [029] 
+  [030] 
+  [031] 
+  [032] 
+  [033] 
+  [034] 
+  [035] 
+  [036] 
+  [037] 
+  [038] 
+  [039] 
+  [040] 
+
+--- BlockActor  (src/common/world/level/block/actor/BlockActor.hpp, 43 annotated virtuals; MSVC vtable index)
+  [000] 
+  [001] 
+  [002] 
+  [003] 
+  [004] 
+  [005] 
+  [006] 
+  [007] 
+  [008] 
+  [009] 
+  [010] 
+  [011] 
+  [012] 
+  [013] 
+  [014] 
+  [015] 
+  [016] 
+  [017] 
+  [018] 
+  [019] 
+  [020] 
+  [021] 
+  [022] 
+  [023] 
+  [024] 
+  [025] 
+  [026] 
+  [027] 
+  [028] 
+  [029] 
+  [030] 
+  [031] 
+  [032] 
+  [033] 
+  [034] 
+  [035] 
+  [036] 
+  [037] 
+  [038] 
+  [039] 
+  [040] 
+  [041] 
+  [042] 
+
+--- Dimension  (src/common/world/level/dimension/Dimension.hpp, 31 annotated virtuals; MSVC vtable index)
+  [000] 
+  [011] 
+  [012] 
+  [013] 
+  [014] 
+  [015] 
+  [016] 
+  [017] 
+  [018] 
+  [019] 
+  [020] 
+  [021] 
+  [022] 
+  [023] 
+  [024] 
+  [025] 
+  [026] 
+  [027] 
+  [028] 
+  [029] 
+  [030] 
+  [031] 
+  [032] 
+  [033] 
+  [034] 
+  [035] 
+  [036] 
+  [037] 
+  [038] 
+  [039] 
+  [040] 
