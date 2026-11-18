@@ -1,0 +1,7 @@
+{
+  "tests/test_forge.py::test_overrides_are_reported_as_unused_when_they_match_nothing": true,
+  "tests/test_forge.py::test_punchy_commands_and_pack": true,
+  "tests/test_v04.py::test_resource_pack_is_shipped_inside_the_levipack_layout": true,
+  "tests/test_v04.py::test_pack_install_picks_up_the_merged_player_entity": true,
+  "tests/test_v04.py::test_vanilla_and_gui_textures_are_reported_not_dropped": true
+}
