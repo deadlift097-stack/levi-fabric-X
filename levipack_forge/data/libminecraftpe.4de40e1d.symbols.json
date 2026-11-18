@@ -1,0 +1,1688 @@
+{
+ "schema": 1,
+ "sha256": "4de40e1dcbbca6d4773af57fa6753afd991b95878bc5d51dcceaebf0d65283d8",
+ "mc_version_string": "1.26.62.01_RC0 (unconfirmed)",
+ "mc_version_confirmed": false,
+ "abi": "arm64-v8a",
+ "build_id": null,
+ "image_base": 0,
+ "notes": [
+  "Item vtable slots do NOT shift by a constant vs Amethyst (MSVC 1.21.0.3): see shift_runs. The hooking guide's '+1..+3' only holds up to msvc slot ~37; at slot 57 the shift is +12. Never add a fixed offset to an Amethyst index.",
+  "status 'static' = instruction evidence read from this exact binary. No entry is live-tested yet.",
+  "Subclass vtables (SwordItem, ...) may override a slot: hooking the base Item slot only affects items that still inherit it.",
+  "No build-id: identify the build by sha256 offline and by the `expect` words at runtime."
+ ],
+ "shift_runs": [
+  {
+   "msvc_from": 1,
+   "msvc_to": 5,
+   "shift": 1
+  },
+  {
+   "msvc_from": 6,
+   "msvc_to": 12,
+   "shift": 2
+  },
+  {
+   "msvc_from": 13,
+   "msvc_to": 37,
+   "shift": 3
+  },
+  {
+   "msvc_from": 38,
+   "msvc_to": 39,
+   "shift": 4
+  },
+  {
+   "msvc_from": 40,
+   "msvc_to": 47,
+   "shift": 6
+  },
+  {
+   "msvc_from": 48,
+   "msvc_to": 48,
+   "shift": 7
+  },
+  {
+   "msvc_from": 49,
+   "msvc_to": 52,
+   "shift": 8
+  },
+  {
+   "msvc_from": 53,
+   "msvc_to": 66,
+   "shift": 12
+  },
+  {
+   "msvc_from": 69,
+   "msvc_to": 70,
+   "shift": 10
+  },
+  {
+   "msvc_from": 71,
+   "msvc_to": 77,
+   "shift": 12
+  },
+  {
+   "msvc_from": 78,
+   "msvc_to": 79,
+   "shift": 13
+  },
+  {
+   "msvc_from": 80,
+   "msvc_to": 89,
+   "shift": 14
+  },
+  {
+   "msvc_from": 90,
+   "msvc_to": 96,
+   "shift": 15
+  },
+  {
+   "msvc_from": 98,
+   "msvc_to": 101,
+   "shift": 14
+  },
+  {
+   "msvc_from": 103,
+   "msvc_to": 113,
+   "shift": 13
+  },
+  {
+   "msvc_from": 114,
+   "msvc_to": 118,
+   "shift": 14
+  }
+ ],
+ "vtables": {
+  "Item": [
+   {
+    "rva": "0x13d9a680",
+    "slots": 133
+   }
+  ],
+  "Actor": [
+   {
+    "rva": "0x13cf5d40",
+    "slots": 137
+   }
+  ],
+  "Mob": [
+   {
+    "rva": "0x13cc5328",
+    "slots": 175
+   }
+  ],
+  "Player": [
+   {
+    "rva": "0x13d43330",
+    "slots": 181
+   }
+  ],
+  "LocalPlayer": [
+   {
+    "rva": "0x139f74e0",
+    "slots": 247
+   }
+  ],
+  "ServerPlayer": [
+   {
+    "rva": "0x13c7c690",
+    "slots": 249
+   }
+  ],
+  "SurvivalMode": [
+   {
+    "rva": "0x13d22f58",
+    "slots": 21
+   }
+  ],
+  "BlockType": [
+   {
+    "rva": "0x13ded6f0",
+    "slots": 134
+   }
+  ],
+  "Block": [
+   {
+    "rva": "0x13dfc700",
+    "slots": 2
+   }
+  ],
+  "Level": [
+   {
+    "rva": "0x13e0a750",
+    "slots": 143
+   },
+   {
+    "rva": "0x13e0b448",
+    "slots": 10
+   },
+   {
+    "rva": "0x13e0b4a8",
+    "slots": 23
+   }
+  ],
+  "Container": [
+   {
+    "rva": "0x13d073c8",
+    "slots": 3
+   }
+  ],
+  "BlockActor": [
+   {
+    "rva": "0x13e408d0",
+    "slots": 28
+   }
+  ],
+  "BlockSource": [
+   {
+    "rva": "0x13d6e328",
+    "slots": 67
+   }
+  ],
+  "Minecraft": [
+   {
+    "rva": "0x13d076b8",
+    "slots": 8
+   }
+  ],
+  "ClientInstance": [
+   {
+    "rva": "0x138904b0",
+    "slots": 400
+   },
+   {
+    "rva": "0x13891260",
+    "slots": 1
+   },
+   {
+    "rva": "0x13891278",
+    "slots": 6
+   },
+   {
+    "rva": "0x138912b8",
+    "slots": 11
+   },
+   {
+    "rva": "0x13891320",
+    "slots": 5
+   },
+   {
+    "rva": "0x13891358",
+    "slots": 3
+   }
+  ],
+  "ScreenController": [
+   {
+    "rva": "0x138c7818",
+    "slots": 40
+   }
+  ],
+  "LevelRenderer": [
+   {
+    "rva": "0x13a555c0",
+    "slots": 36
+   },
+   {
+    "rva": "0x13a556f0",
+    "slots": 22
+   }
+  ],
+  "ItemStack": [
+   {
+    "rva": "0x13d96650",
+    "slots": 9
+   }
+  ],
+  "ItemStackBase": [
+   {
+    "rva": "0x13d93b40",
+    "slots": 2
+   }
+  ],
+  "Dimension": [
+   {
+    "rva": "0x13e0d530",
+    "slots": 11
+   },
+   {
+    "rva": "0x13e0d6d8",
+    "slots": 32
+   },
+   {
+    "rva": "0x13e0d7e8",
+    "slots": 4
+   },
+   {
+    "rva": "0x13e0d818",
+    "slots": 2
+   }
+  ]
+ },
+ "functions": {
+  "Item::getDescriptionId": {
+   "kind": "virtual",
+   "vtable": "Item",
+   "index": 5,
+   "msvc_index": 4,
+   "status": "static",
+   "source": "android-hooking-guide",
+   "evidence": "add x0,x0,#0x90 ; ret (returns member @0x90)",
+   "signature": "const std::string& getDescriptionId() const",
+   "cpp_ret": "void *",
+   "cpp_params": [],
+   "expect": [
+    "0x91024000",
+    "0xD65F03C0"
+   ],
+   "expect_text": [
+    "add x0, x0, #0x90",
+    "ret"
+   ]
+  },
+  "Item::getMaxUseDuration": {
+   "kind": "virtual",
+   "vtable": "Item",
+   "index": 6,
+   "msvc_index": 5,
+   "status": "static",
+   "source": "android-hooking-guide",
+   "evidence": "ldr w0,[x0,#0x114] ; ret",
+   "signature": "int getMaxUseDuration(const ItemStack* item) const",
+   "cpp_ret": "int",
+   "cpp_params": [
+    "void *"
+   ],
+   "expect": [
+    "0xB9411400",
+    "0xD65F03C0"
+   ],
+   "expect_text": [
+    "ldr w0, [x0, #0x114]",
+    "ret"
+   ]
+  },
+  "Item::setMaxDamage": {
+   "kind": "virtual",
+   "vtable": "Item",
+   "index": 27,
+   "msvc_index": 24,
+   "status": "static",
+   "source": "android-hooking-guide",
+   "evidence": "strh w1,[x0,#0x110] ; ret",
+   "signature": "Item& setMaxDamage(int maxDamage)",
+   "cpp_ret": "void *",
+   "cpp_params": [
+    "int"
+   ],
+   "expect": [
+    "0x79022001",
+    "0xD65F03C0"
+   ],
+   "expect_text": [
+    "strh w1, [x0, #0x110]",
+    "ret"
+   ]
+  },
+  "Item::setMaxUseDuration": {
+   "kind": "virtual",
+   "vtable": "Item",
+   "index": 28,
+   "msvc_index": 25,
+   "status": "static",
+   "source": "forge-analysis",
+   "evidence": "str w1,[x0,#0x114] ; ret (sibling of setMaxDamage, same field as getMaxUseDuration)",
+   "signature": "Item& setMaxUseDuration(int duration)",
+   "cpp_ret": "void *",
+   "cpp_params": [
+    "int"
+   ],
+   "expect": [
+    "0xB9011401",
+    "0xD65F03C0"
+   ],
+   "expect_text": [
+    "str w1, [x0, #0x114]",
+    "ret"
+   ]
+  },
+  "Item::canBeDepleted": {
+   "kind": "virtual",
+   "vtable": "Item",
+   "index": 33,
+   "msvc_index": 30,
+   "status": "static",
+   "source": "android-hooking-guide",
+   "evidence": "reads short@0x110 > 0 and flag@0x112 bit 2",
+   "signature": "bool canBeDepleted() const",
+   "cpp_ret": "bool",
+   "cpp_params": [],
+   "expect": [
+    "0x39444808",
+    "0x79C22009"
+   ],
+   "expect_text": [
+    "ldrb w8, [x0, #0x112]",
+    "ldrsh w9, [x0, #0x110]"
+   ]
+  },
+  "Item::getMaxDamage": {
+   "kind": "virtual",
+   "vtable": "Item",
+   "index": 37,
+   "msvc_index": 34,
+   "status": "static",
+   "source": "android-hooking-guide",
+   "evidence": "ldrh w0,[x0,#0x110] ; ret",
+   "signature": "short getMaxDamage() const",
+   "cpp_ret": "short",
+   "cpp_params": [],
+   "expect": [
+    "0x79422000",
+    "0xD65F03C0"
+   ],
+   "expect_text": [
+    "ldrh w0, [x0, #0x110]",
+    "ret"
+   ]
+  },
+  "Item::getAttackDamage": {
+   "kind": "virtual",
+   "vtable": "Item",
+   "index": 38,
+   "msvc_index": 35,
+   "status": "static",
+   "source": "android-hooking-guide",
+   "evidence": "mov w0,wzr ; ret (int, default 0); sits between getMaxDamage and the float-0 getter",
+   "signature": "int getAttackDamage() const",
+   "cpp_ret": "int",
+   "cpp_params": [],
+   "expect": [
+    "0x2A1F03E0",
+    "0xD65F03C0"
+   ],
+   "expect_text": [
+    "mov w0, wzr",
+    "ret"
+   ]
+  },
+  "Item::getAttackDamageBonus": {
+   "kind": "virtual",
+   "vtable": "Item",
+   "index": 39,
+   "msvc_index": 36,
+   "status": "static",
+   "source": "android-hooking-guide",
+   "evidence": "movi d0,#0 ; ret (float, default 0)",
+   "signature": "float getAttackDamageBonus(const Actor& actor, float unk1) const",
+   "cpp_ret": "float",
+   "cpp_params": [
+    "void *",
+    "float"
+   ],
+   "expect": [
+    "0x2F00E400",
+    "0xD65F03C0"
+   ],
+   "expect_text": [
+    "movi d0, #0",
+    "ret"
+   ]
+  },
+  "Item::isHandEquipped": {
+   "kind": "virtual",
+   "vtable": "Item",
+   "index": 40,
+   "msvc_index": 37,
+   "status": "static",
+   "source": "android-hooking-guide",
+   "evidence": "ldrb [x0,#0x112] ; ubfx #1 ; ret",
+   "signature": "bool isHandEquipped() const",
+   "cpp_ret": "bool",
+   "cpp_params": [],
+   "expect": [
+    "0x39444808",
+    "0x53010500",
+    "0xD65F03C0"
+   ],
+   "expect_text": [
+    "ldrb w8, [x0, #0x112]",
+    "ubfx w0, w8, #1, #1",
+    "ret"
+   ]
+  },
+  "Item::getDamageChance": {
+   "kind": "virtual",
+   "vtable": "Item",
+   "index": 69,
+   "msvc_index": 57,
+   "status": "static",
+   "source": "forge-analysis",
+   "evidence": "100/(n+1): mov w8,#0x64 ; add w9,w1,#1 ; sdiv w0,w8,w9",
+   "signature": "int getDamageChance(int unk0) const",
+   "cpp_ret": "int",
+   "cpp_params": [
+    "int"
+   ],
+   "expect": [
+    "0x52800C88",
+    "0x11000429",
+    "0x1AC90D00"
+   ],
+   "expect_text": [
+    "mov w8, #0x64",
+    "add w9, w1, #1",
+    "sdiv w0, w8, w9"
+   ]
+  },
+  "Item::buildIdAux": {
+   "kind": "virtual",
+   "vtable": "Item",
+   "index": 80,
+   "msvc_index": 70,
+   "status": "static",
+   "source": "forge-analysis",
+   "evidence": "(itemId<<16)|aux: ldrh w8,[x0,#0x8a] ; sxth w9,w1 ; orr w0,w9,w8,lsl #16",
+   "signature": "int buildIdAux(short unk0, const CompoundTag* unk1) const",
+   "cpp_ret": "int",
+   "cpp_params": [
+    "short",
+    "void *"
+   ],
+   "expect": [
+    "0x79411408",
+    "0x13003C29",
+    "0x2A084120"
+   ],
+   "expect_text": [
+    "ldrh w8, [x0, #0x8a]",
+    "sxth w9, w1",
+    "orr w0, w9, w8, lsl #16"
+   ]
+  },
+  "Item::initServer": {
+   "kind": "virtual",
+   "vtable": "Item",
+   "index": 2,
+   "msvc_index": 1,
+   "status": "reported",
+   "source": "android-hooking-guide",
+   "evidence": "guide lists it as verified; no instruction evidence recorded",
+   "signature": "bool initServer(const Json::Value& config, const SemVersion& version, bool unk2, const Experiments& experiments)"
+  },
+  "Item::setDescriptionId": {
+   "kind": "virtual",
+   "vtable": "Item",
+   "index": 4,
+   "msvc_index": 3,
+   "status": "reported",
+   "source": "android-hooking-guide",
+   "evidence": "guide lists it as verified; no instruction evidence recorded",
+   "signature": "Item& setDescriptionId(const std::string& descriptionId)"
+  }
+ },
+ "candidates": [
+  {
+   "name": "Item::tearDown",
+   "vtable": "Item",
+   "index": 3,
+   "msvc_index": 2,
+   "shift": 1,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~void_ret",
+   "signature": "void tearDown()"
+  },
+  {
+   "name": "Item::isMusicDisk",
+   "vtable": "Item",
+   "index": 8,
+   "msvc_index": 6,
+   "shift": 2,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isMusicDisk() const"
+  },
+  {
+   "name": "Item::executeEvent",
+   "vtable": "Item",
+   "index": 9,
+   "msvc_index": 7,
+   "shift": 2,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~void_ret",
+   "signature": "void executeEvent(ItemStackBase& stack, const std::string& eventName, RenderParams& renderParams) const"
+  },
+  {
+   "name": "Item::isComponentBased",
+   "vtable": "Item",
+   "index": 10,
+   "msvc_index": 8,
+   "shift": 2,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isComponentBased() const"
+  },
+  {
+   "name": "Item::isHumanoidArmor",
+   "vtable": "Item",
+   "index": 11,
+   "msvc_index": 9,
+   "shift": 2,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isHumanoidArmor() const"
+  },
+  {
+   "name": "Item::isBlockPlanterItem",
+   "vtable": "Item",
+   "index": 12,
+   "msvc_index": 10,
+   "shift": 2,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isBlockPlanterItem() const"
+  },
+  {
+   "name": "Item::isBucket",
+   "vtable": "Item",
+   "index": 13,
+   "msvc_index": 11,
+   "shift": 2,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isBucket() const"
+  },
+  {
+   "name": "Item::isCandle",
+   "vtable": "Item",
+   "index": 14,
+   "msvc_index": 12,
+   "shift": 2,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isCandle() const"
+  },
+  {
+   "name": "Item::isDamageable",
+   "vtable": "Item",
+   "index": 16,
+   "msvc_index": 13,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isDamageable() const"
+  },
+  {
+   "name": "Item::isDyeable",
+   "vtable": "Item",
+   "index": 17,
+   "msvc_index": 14,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isDyeable() const"
+  },
+  {
+   "name": "Item::isDye",
+   "vtable": "Item",
+   "index": 18,
+   "msvc_index": 15,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~const",
+   "signature": "bool isDye() const"
+  },
+  {
+   "name": "Item::getItemColor",
+   "vtable": "Item",
+   "index": 19,
+   "msvc_index": 16,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "any~zero",
+   "signature": "ItemColor getItemColor() const"
+  },
+  {
+   "name": "Item::isFertilizer",
+   "vtable": "Item",
+   "index": 20,
+   "msvc_index": 17,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~complex",
+   "signature": "bool isFertilizer() const"
+  },
+  {
+   "name": "Item::isFood",
+   "vtable": "Item",
+   "index": 21,
+   "msvc_index": 18,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isFood() const"
+  },
+  {
+   "name": "Item::isThrowable",
+   "vtable": "Item",
+   "index": 22,
+   "msvc_index": 19,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isThrowable() const"
+  },
+  {
+   "name": "Item::isUseable",
+   "vtable": "Item",
+   "index": 23,
+   "msvc_index": 20,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isUseable() const"
+  },
+  {
+   "name": "Item::isTrimAllowed",
+   "vtable": "Item",
+   "index": 24,
+   "msvc_index": 21,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isTrimAllowed() const"
+  },
+  {
+   "name": "Item::getComponent",
+   "vtable": "Item",
+   "index": 25,
+   "msvc_index": 22,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "ptr~nullptr",
+   "signature": "ItemComponent* getComponent(const HashedString& componentName) const"
+  },
+  {
+   "name": "Item::getFood",
+   "vtable": "Item",
+   "index": 26,
+   "msvc_index": 23,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "ptr~ldr64",
+   "signature": "IFoodItemComponent* getFood() const"
+  },
+  {
+   "name": "Item::buildNetworkTag",
+   "vtable": "Item",
+   "index": 29,
+   "msvc_index": 26,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "aligned",
+   "shape": "struct~complex",
+   "signature": "std::unique_ptr<CompoundTag> buildNetworkTag() const"
+  },
+  {
+   "name": "Item::initializeFromNetwork",
+   "vtable": "Item",
+   "index": 30,
+   "msvc_index": 27,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "aligned",
+   "shape": "void~complex",
+   "signature": "void initializeFromNetwork(const CompoundTag& userData)"
+  },
+  {
+   "name": "Item::validateFromNetwork",
+   "vtable": "Item",
+   "index": 31,
+   "msvc_index": 28,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "aligned",
+   "shape": "struct~sret0",
+   "signature": "std::vector<std::string> validateFromNetwork(const CompoundTag& userData)"
+  },
+  {
+   "name": "Item::getBlockShape",
+   "vtable": "Item",
+   "index": 32,
+   "msvc_index": 29,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "aligned",
+   "shape": "any~const",
+   "signature": "BlockShape getBlockShape() const"
+  },
+  {
+   "name": "Item::canDestroySpecial",
+   "vtable": "Item",
+   "index": 34,
+   "msvc_index": 31,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "aligned",
+   "shape": "bool~zero",
+   "signature": "bool canDestroySpecial(const Block& block) const"
+  },
+  {
+   "name": "Item::getLevelDataForAuxValue",
+   "vtable": "Item",
+   "index": 35,
+   "msvc_index": 32,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "aligned",
+   "shape": "int~zero",
+   "signature": "int getLevelDataForAuxValue(int auxValue) const"
+  },
+  {
+   "name": "Item::isStackedByData",
+   "vtable": "Item",
+   "index": 36,
+   "msvc_index": 33,
+   "shift": 3,
+   "status": "candidate",
+   "confidence": "aligned",
+   "shape": "bool~ubfx",
+   "signature": "bool isStackedByData() const"
+  },
+  {
+   "name": "Item::isGlint",
+   "vtable": "Item",
+   "index": 42,
+   "msvc_index": 38,
+   "shift": 4,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isGlint(const ItemStackBase& stack) const"
+  },
+  {
+   "name": "Item::isPattern",
+   "vtable": "Item",
+   "index": 43,
+   "msvc_index": 39,
+   "shift": 4,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isPattern() const"
+  },
+  {
+   "name": "Item::getPatternIndex",
+   "vtable": "Item",
+   "index": 46,
+   "msvc_index": 40,
+   "shift": 6,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "int~const",
+   "signature": "int getPatternIndex() const"
+  },
+  {
+   "name": "Item::showsDurabilityInCreative",
+   "vtable": "Item",
+   "index": 47,
+   "msvc_index": 41,
+   "shift": 6,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool showsDurabilityInCreative() const"
+  },
+  {
+   "name": "Item::isWearableThroughLootTable",
+   "vtable": "Item",
+   "index": 48,
+   "msvc_index": 42,
+   "shift": 6,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isWearableThroughLootTable(const CompoundTag* unk0) const"
+  },
+  {
+   "name": "Item::canDestroyInCreative",
+   "vtable": "Item",
+   "index": 49,
+   "msvc_index": 43,
+   "shift": 6,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~const",
+   "signature": "bool canDestroyInCreative() const"
+  },
+  {
+   "name": "Item::isDestructive",
+   "vtable": "Item",
+   "index": 50,
+   "msvc_index": 44,
+   "shift": 6,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isDestructive(int unk0) const"
+  },
+  {
+   "name": "Item::isLiquidClipItem",
+   "vtable": "Item",
+   "index": 51,
+   "msvc_index": 45,
+   "shift": 6,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isLiquidClipItem() const"
+  },
+  {
+   "name": "Item::shouldInteractionWithBlockBypassLiquid",
+   "vtable": "Item",
+   "index": 52,
+   "msvc_index": 46,
+   "shift": 6,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool shouldInteractionWithBlockBypassLiquid(const Block& block) const"
+  },
+  {
+   "name": "Item::requiresInteract",
+   "vtable": "Item",
+   "index": 53,
+   "msvc_index": 47,
+   "shift": 6,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool requiresInteract() const"
+  },
+  {
+   "name": "Item::appendFormattedHovertext",
+   "vtable": "Item",
+   "index": 55,
+   "msvc_index": 48,
+   "shift": 7,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~complex",
+   "signature": "void appendFormattedHovertext(const ItemStackBase& stack, Level& level, std::string& outText, bool showCategory) co"
+  },
+  {
+   "name": "Item::isValidRepairItem",
+   "vtable": "Item",
+   "index": 57,
+   "msvc_index": 49,
+   "shift": 8,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isValidRepairItem(const ItemStackBase& targetStack, const ItemStackBase& repairStack, const BaseGameVersion& v"
+  },
+  {
+   "name": "Item::getEnchantSlot",
+   "vtable": "Item",
+   "index": 58,
+   "msvc_index": 50,
+   "shift": 8,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "int~zero",
+   "signature": "int getEnchantSlot() const"
+  },
+  {
+   "name": "Item::getEnchantValue",
+   "vtable": "Item",
+   "index": 59,
+   "msvc_index": 51,
+   "shift": 8,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "int~zero",
+   "signature": "int getEnchantValue() const"
+  },
+  {
+   "name": "Item::getArmorValue",
+   "vtable": "Item",
+   "index": 60,
+   "msvc_index": 52,
+   "shift": 8,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "int~zero",
+   "signature": "int getArmorValue() const"
+  },
+  {
+   "name": "Item::getToughnessValue",
+   "vtable": "Item",
+   "index": 65,
+   "msvc_index": 53,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "int~const",
+   "signature": "int getToughnessValue() const"
+  },
+  {
+   "name": "Item::getBreakSound",
+   "vtable": "Item",
+   "index": 66,
+   "msvc_index": 54,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "any~const",
+   "signature": "Puv::Legacy::LevelSoundEvent getBreakSound() const"
+  },
+  {
+   "name": "Item::isComplex",
+   "vtable": "Item",
+   "index": 67,
+   "msvc_index": 55,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isComplex() const"
+  },
+  {
+   "name": "Item::isValidAuxValue",
+   "vtable": "Item",
+   "index": 68,
+   "msvc_index": 56,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~const",
+   "signature": "bool isValidAuxValue(int auxValue) const"
+  },
+  {
+   "name": "Item::getViewDamping",
+   "vtable": "Item",
+   "index": 70,
+   "msvc_index": 58,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "float~fconst",
+   "signature": "float getViewDamping() const"
+  },
+  {
+   "name": "Item::uniqueAuxValues",
+   "vtable": "Item",
+   "index": 71,
+   "msvc_index": 59,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool uniqueAuxValues() const"
+  },
+  {
+   "name": "Item::isActorPlacerItem",
+   "vtable": "Item",
+   "index": 72,
+   "msvc_index": 60,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isActorPlacerItem() const"
+  },
+  {
+   "name": "Item::isMultiColorTinted",
+   "vtable": "Item",
+   "index": 73,
+   "msvc_index": 61,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~movret",
+   "signature": "bool isMultiColorTinted(const ItemStack& stack) const"
+  },
+  {
+   "name": "Item::getColor",
+   "vtable": "Item",
+   "index": 74,
+   "msvc_index": 62,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "any~complex",
+   "signature": "mce::Color getColor(const CompoundTag* unk0, const ItemDescriptor& descriptor) const"
+  },
+  {
+   "name": "Item::hasCustomColor",
+   "vtable": "Item",
+   "index": 75,
+   "msvc_index": 63,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool hasCustomColor(const CompoundTag* unk0) const"
+  },
+  {
+   "name": "Item::hasCustomColor",
+   "vtable": "Item",
+   "index": 76,
+   "msvc_index": 64,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool hasCustomColor(const ItemStackBase& stack) const"
+  },
+  {
+   "name": "Item::clearColor",
+   "vtable": "Item",
+   "index": 77,
+   "msvc_index": 65,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~void_ret",
+   "signature": "void clearColor(ItemStackBase& stack) const"
+  },
+  {
+   "name": "Item::setColor",
+   "vtable": "Item",
+   "index": 78,
+   "msvc_index": 66,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~void_ret",
+   "signature": "void setColor(ItemStackBase& stack, const mce::Color& color) const"
+  },
+  {
+   "name": "Item::getActorIdentifier",
+   "vtable": "Item",
+   "index": 79,
+   "msvc_index": 69,
+   "shift": 10,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "any~movret",
+   "signature": "ActorDefinitionIdentifier getActorIdentifier(const ItemStack& stack) const"
+  },
+  {
+   "name": "Item::canUseOnSimTick",
+   "vtable": "Item",
+   "index": 83,
+   "msvc_index": 71,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool canUseOnSimTick() const"
+  },
+  {
+   "name": "Item::use",
+   "vtable": "Item",
+   "index": 84,
+   "msvc_index": 72,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "ref~complex",
+   "signature": "ItemStack& use(ItemStack& stack, Player& player) const"
+  },
+  {
+   "name": "Item::createProjectileActor",
+   "vtable": "Item",
+   "index": 85,
+   "msvc_index": 73,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "ptr~nullptr",
+   "signature": "Actor* createProjectileActor(BlockSource& source, const ItemStack& stack, const Vec3& pos, const Vec3& velocity) co"
+  },
+  {
+   "name": "Item::dispense",
+   "vtable": "Item",
+   "index": 86,
+   "msvc_index": 74,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~complex",
+   "signature": "bool dispense(BlockSource& source, Container& container, int slot, const Vec3& pos, FacingID facing) const"
+  },
+  {
+   "name": "Item::useTimeDepleted",
+   "vtable": "Item",
+   "index": 87,
+   "msvc_index": 75,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "any~complex",
+   "signature": "ItemUseMethod useTimeDepleted(ItemStack& stack, Level* level, Player* player) const"
+  },
+  {
+   "name": "Item::releaseUsing",
+   "vtable": "Item",
+   "index": 88,
+   "msvc_index": 76,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~complex",
+   "signature": "void releaseUsing(ItemStack& stack, Player* player, int duration) const"
+  },
+  {
+   "name": "Item::getDestroySpeed",
+   "vtable": "Item",
+   "index": 89,
+   "msvc_index": 77,
+   "shift": 12,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "float~fconst",
+   "signature": "float getDestroySpeed(const ItemStackBase& stack, const Block& block) const"
+  },
+  {
+   "name": "Item::hurtActor",
+   "vtable": "Item",
+   "index": 91,
+   "msvc_index": 78,
+   "shift": 13,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~void_ret",
+   "signature": "void hurtActor(ItemStack& stack, Actor& actor, Mob& attacker) const"
+  },
+  {
+   "name": "Item::hitActor",
+   "vtable": "Item",
+   "index": 92,
+   "msvc_index": 79,
+   "shift": 13,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~void_ret",
+   "signature": "void hitActor(ItemStack& stack, Actor& actor, Mob& attacker) const"
+  },
+  {
+   "name": "Item::hitBlock",
+   "vtable": "Item",
+   "index": 94,
+   "msvc_index": 80,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~complex",
+   "signature": "void hitBlock(ItemStack& stack, const Block& block, const BlockPos& pos, Mob& mob) const"
+  },
+  {
+   "name": "Item::mineBlock",
+   "vtable": "Item",
+   "index": 95,
+   "msvc_index": 81,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~complex",
+   "signature": "bool mineBlock(ItemStack& stack, const Block& block, int x, int y, int z, Actor* owner) const"
+  },
+  {
+   "name": "Item::buildDescriptionName",
+   "vtable": "Item",
+   "index": 96,
+   "msvc_index": 82,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "struct~complex",
+   "signature": "std::string buildDescriptionName(const ItemStackBase& stack) const"
+  },
+  {
+   "name": "Item::buildDescriptionId",
+   "vtable": "Item",
+   "index": 97,
+   "msvc_index": 83,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "struct~complex",
+   "signature": "std::string buildDescriptionId(const ItemDescriptor& descriptor, const CompoundTag* tag) const"
+  },
+  {
+   "name": "Item::buildEffectDescriptionName",
+   "vtable": "Item",
+   "index": 98,
+   "msvc_index": 84,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "struct~complex",
+   "signature": "std::string buildEffectDescriptionName(const ItemStackBase& stack) const"
+  },
+  {
+   "name": "Item::readUserData",
+   "vtable": "Item",
+   "index": 99,
+   "msvc_index": 85,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~complex",
+   "signature": "void readUserData(ItemStackBase& stack, IDataInput& input, ReadOnlyBinaryStream& stream) const"
+  },
+  {
+   "name": "Item::writeUserData",
+   "vtable": "Item",
+   "index": 100,
+   "msvc_index": 86,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~complex",
+   "signature": "void writeUserData(const ItemStackBase& stack, IDataOutput& output) const"
+  },
+  {
+   "name": "Item::getMaxStackSize",
+   "vtable": "Item",
+   "index": 101,
+   "msvc_index": 87,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "int~ldrb",
+   "signature": "uint8_t getMaxStackSize(const ItemDescriptor& descriptor) const"
+  },
+  {
+   "name": "Item::inventoryTick",
+   "vtable": "Item",
+   "index": 102,
+   "msvc_index": 88,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool inventoryTick(ItemStack& stack, Level& level, Actor& actor, int unk3, bool unk4) const"
+  },
+  {
+   "name": "Item::refreshedInContainer",
+   "vtable": "Item",
+   "index": 103,
+   "msvc_index": 89,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~void_ret",
+   "signature": "void refreshedInContainer(const ItemStackBase& stack, Level& level) const"
+  },
+  {
+   "name": "Item::getCooldownType",
+   "vtable": "Item",
+   "index": 105,
+   "msvc_index": 90,
+   "shift": 15,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "ref~complex",
+   "signature": "const HashedString& getCooldownType() const"
+  },
+  {
+   "name": "Item::getCooldownTime",
+   "vtable": "Item",
+   "index": 106,
+   "msvc_index": 91,
+   "shift": 15,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "int~zero",
+   "signature": "int getCooldownTime() const"
+  },
+  {
+   "name": "Item::fixupCommon",
+   "vtable": "Item",
+   "index": 107,
+   "msvc_index": 92,
+   "shift": 15,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~complex",
+   "signature": "void fixupCommon(ItemStackBase& stack, Level& level) const"
+  },
+  {
+   "name": "Item::fixupCommon",
+   "vtable": "Item",
+   "index": 108,
+   "msvc_index": 93,
+   "shift": 15,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~tail",
+   "signature": "void fixupCommon(ItemStackBase& stack) const"
+  },
+  {
+   "name": "Item::getInHandUpdateType",
+   "vtable": "Item",
+   "index": 109,
+   "msvc_index": 94,
+   "shift": 15,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "any~small",
+   "signature": "InHandUpdateType getInHandUpdateType(const Player& player, const ItemStack& currentStack, const ItemStack& prevStac"
+  },
+  {
+   "name": "Item::validFishInteraction",
+   "vtable": "Item",
+   "index": 110,
+   "msvc_index": 95,
+   "shift": 15,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool validFishInteraction(int unk0) const"
+  },
+  {
+   "name": "Item::enchantProjectile",
+   "vtable": "Item",
+   "index": 111,
+   "msvc_index": 96,
+   "shift": 15,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~void_ret",
+   "signature": "void enchantProjectile(const ItemStackBase& stack, Actor& actor) const"
+  },
+  {
+   "name": "Item::getEquipSound",
+   "vtable": "Item",
+   "index": 112,
+   "msvc_index": 98,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "any~const",
+   "signature": "Puv::Legacy::LevelSoundEvent getEquipSound() const"
+  },
+  {
+   "name": "Item::shouldSendInteractionGameEvents",
+   "vtable": "Item",
+   "index": 113,
+   "msvc_index": 99,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~const",
+   "signature": "bool shouldSendInteractionGameEvents() const"
+  },
+  {
+   "name": "Item::useInterruptedByAttacking",
+   "vtable": "Item",
+   "index": 114,
+   "msvc_index": 100,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~const",
+   "signature": "bool useInterruptedByAttacking() const"
+  },
+  {
+   "name": "Item::hasSameRelevantUserData",
+   "vtable": "Item",
+   "index": 115,
+   "msvc_index": 101,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~const",
+   "signature": "bool hasSameRelevantUserData(const ItemStackBase& stack, const ItemStackBase& prevStack) const"
+  },
+  {
+   "name": "Item::setIconInfo",
+   "vtable": "Item",
+   "index": 116,
+   "msvc_index": 103,
+   "shift": 13,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "ref~complex",
+   "signature": "Item& setIconInfo(const std::string& iconName, int iconFrame)"
+  },
+  {
+   "name": "Item::getIconInfo",
+   "vtable": "Item",
+   "index": 117,
+   "msvc_index": 104,
+   "shift": 13,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "any~complex",
+   "signature": "ResolvedItemIconInfo getIconInfo(const ItemStackBase& stack, int unk1, bool unk2) const"
+  },
+  {
+   "name": "Item::getInteractText",
+   "vtable": "Item",
+   "index": 118,
+   "msvc_index": 105,
+   "shift": 13,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "struct~complex",
+   "signature": "std::string getInteractText(const Player& player) const"
+  },
+  {
+   "name": "Item::getAnimationFrameFor",
+   "vtable": "Item",
+   "index": 119,
+   "msvc_index": 106,
+   "shift": 13,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "int~complex",
+   "signature": "int getAnimationFrameFor(Mob* mob, bool unk1, const ItemStack* stack, bool unk3) const"
+  },
+  {
+   "name": "Item::isEmissive",
+   "vtable": "Item",
+   "index": 120,
+   "msvc_index": 107,
+   "shift": 13,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool isEmissive(int unk0) const"
+  },
+  {
+   "name": "Item::getLightEmission",
+   "vtable": "Item",
+   "index": 121,
+   "msvc_index": 108,
+   "shift": 13,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "any~complex",
+   "signature": "Brightness getLightEmission(int unk0) const"
+  },
+  {
+   "name": "Item::getIconYOffset",
+   "vtable": "Item",
+   "index": 122,
+   "msvc_index": 109,
+   "shift": 13,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "int~zero",
+   "signature": "int getIconYOffset() const"
+  },
+  {
+   "name": "Item::canBeCharged",
+   "vtable": "Item",
+   "index": 123,
+   "msvc_index": 110,
+   "shift": 13,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~zero",
+   "signature": "bool canBeCharged() const"
+  },
+  {
+   "name": "Item::playSoundIncrementally",
+   "vtable": "Item",
+   "index": 124,
+   "msvc_index": 111,
+   "shift": 13,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "void~void_ret",
+   "signature": "void playSoundIncrementally(const ItemStack& stack, Mob& mob) const"
+  },
+  {
+   "name": "Item::getFurnaceXPmultiplier",
+   "vtable": "Item",
+   "index": 125,
+   "msvc_index": 112,
+   "shift": 13,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "float~ldr_s",
+   "signature": "float getFurnaceXPmultiplier(const ItemStackBase& stack) const"
+  },
+  {
+   "name": "Item::getAuxValuesDescription",
+   "vtable": "Item",
+   "index": 126,
+   "msvc_index": 113,
+   "shift": 13,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "struct~complex",
+   "signature": "std::string getAuxValuesDescription() const"
+  },
+  {
+   "name": "Item::calculatePlacePos",
+   "vtable": "Item",
+   "index": 128,
+   "msvc_index": 114,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~complex",
+   "signature": "bool calculatePlacePos(ItemStackBase& stack, Actor& actor, FacingID& face, BlockPos& pos) const"
+  },
+  {
+   "name": "Item::_checkUseOnPermissions",
+   "vtable": "Item",
+   "index": 129,
+   "msvc_index": 115,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~complex",
+   "signature": "bool _checkUseOnPermissions(Actor& actor, ItemStackBase& stack, const FacingID& face, const BlockPos& pos) const"
+  },
+  {
+   "name": "Item::_calculatePlacePos",
+   "vtable": "Item",
+   "index": 130,
+   "msvc_index": 116,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~const",
+   "signature": "bool _calculatePlacePos(ItemStackBase& stack, Actor& actor, FacingID& face, BlockPos& pos) const"
+  },
+  {
+   "name": "Item::_shouldAutoCalculatePlacePos",
+   "vtable": "Item",
+   "index": 131,
+   "msvc_index": 117,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "bool~const",
+   "signature": "bool _shouldAutoCalculatePlacePos() const"
+  },
+  {
+   "name": "Item::_useOn",
+   "vtable": "Item",
+   "index": 132,
+   "msvc_index": 118,
+   "shift": 14,
+   "status": "candidate",
+   "confidence": "weak",
+   "shape": "any~complex",
+   "signature": "InteractionResult _useOn(ItemStack& stack, Actor& actor, BlockPos pos, FacingID face, const Vec3& hit) const"
+  }
+ ],
+ "offsets": {
+  "Item::maxDamage": {
+   "offset": "0x110",
+   "type": "int16",
+   "status": "static",
+   "evidence": "strh/ldrh in setMaxDamage/getMaxDamage"
+  },
+  "Item::flags": {
+   "offset": "0x112",
+   "type": "uint8",
+   "status": "static",
+   "evidence": "bit1 = hand equipped, bit2 = damageable flag (canBeDepleted)"
+  },
+  "Item::maxUseDuration": {
+   "offset": "0x114",
+   "type": "int32",
+   "status": "static",
+   "evidence": "ldr/str in getMaxUseDuration/setMaxUseDuration"
+  },
+  "Item::id": {
+   "offset": "0x8a",
+   "type": "int16",
+   "status": "static",
+   "evidence": "ldrh in buildIdAux"
+  },
+  "Item::descriptionId": {
+   "offset": "0x90",
+   "type": "std::string (libc++, 24 bytes)",
+   "status": "static",
+   "evidence": "returned by getDescriptionId"
+  }
+ },
+ "java_aliases": {
+  "Item.getMaxDamage": "Item::getMaxDamage",
+  "ItemStack.getMaxDamage": "Item::getMaxDamage",
+  "Item.getUseDuration": "Item::getMaxUseDuration",
+  "Item.getMaxUseTime": "Item::getMaxUseDuration",
+  "Item.isDamageable": "Item::canBeDepleted",
+  "Item.getDescriptionId": "Item::getDescriptionId",
+  "Item.getTranslationKey": "Item::getDescriptionId"
+ },
+ "java_classes": {
+  "Item": "Item",
+  "ItemStack": "Item",
+  "SwordItem": "Item",
+  "TieredItem": "Item",
+  "DiggerItem": "Item",
+  "ToolItem": "Item",
+  "ArmorItem": "Item"
+ }
+}
