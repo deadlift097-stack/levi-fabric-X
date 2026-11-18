@@ -1,0 +1,18 @@
+name: CI
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      # numpy/pyelftools/capstone: tools/so_probe.py tests; g++ (preinstalled) compiles the generated Resolve.cpp/Hooks.cpp
+      - run: pip install -e . pytest numpy pyelftools capstone
+      - run: pytest -q
+      - name: generated hooks compile against the real preloader-android SDK
+        run: python tools/check_sdk_compile.py
+      - name: symbol DB is reproducible from symbols/source
+        run: |
+          python tools/make_symbols_db.py --out /tmp/db.json
+          diff /tmp/db.json levipack_forge/data/libminecraftpe.4de40e1d.symbols.json

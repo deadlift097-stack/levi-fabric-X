@@ -1,0 +1,50 @@
+name: Live test (Item::getAttackDamage hook)
+# Builds the on-device proof levipack. See LIVE_TEST.md inside the artifact for what to look for in the log.
+on:
+  workflow_dispatch:
+    inputs:
+      bonus:
+        description: "Value added to Item::getAttackDamage"
+        default: "3"
+      mc_versions:
+        description: 'Bedrock versions for the manifest, JSON array'
+        default: '["1.26.*"]'
+      abi:
+        description: "arm64-v8a | armeabi-v7a | all (the DB only knows the arm64 build)"
+        default: "arm64-v8a"
+jobs:
+  live-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e .
+      - name: Generate
+        run: levipack-forge live-test -o generated --bonus "${{ inputs.bonus }}" --mc-versions '${{ inputs.mc_versions }}'
+      - name: Set up Android NDK (uses the SDK preinstalled on the runner)
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          SDKM="$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n1 || true)"
+          echo "sdkmanager: ${SDKM:-not found}"
+          if [ -n "$SDKM" ]; then
+            yes | "$SDKM" --licenses > /dev/null 2>&1 || true
+            "$SDKM" "ndk;28.2.13676358" || echo "NDK 28.2 install failed, falling back to a preinstalled NDK"
+          fi
+          echo "Installed NDKs:"; ls "$ANDROID_HOME/ndk" || true
+          sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Build .levipack
+        working-directory: generated
+        shell: pwsh
+        run: ./scripts/package.ps1 -Abi ${{ inputs.abi }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: live-test-levipack
+          path: |
+            generated/build-*/*.levipack
+            generated/LIVE_TEST.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: live-test-project
+          path: generated

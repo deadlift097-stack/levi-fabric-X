@@ -1,0 +1,59 @@
+name: Convert Fabric mod -> .levipack
+on:
+  workflow_dispatch:
+    inputs:
+      jar:
+        description: "Path to the Fabric .jar inside this repo (e.g. mods/my-mod.jar) or an https URL"
+        required: true
+      mc_versions:
+        description: 'Bedrock versions for the manifest, JSON array'
+        default: '["1.26.*"]'
+      abi:
+        description: "arm64-v8a | armeabi-v7a | all"
+        default: "all"
+jobs:
+  convert-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e .
+      - name: Fetch jar
+        run: |
+          case "${{ inputs.jar }}" in
+            http*) curl -fL "${{ inputs.jar }}" -o input.jar ;;
+            *)     cp "${{ inputs.jar }}" input.jar ;;
+          esac
+      - name: Convert
+        run: |
+          # no --symbols needed: the bundled build-keyed vtable DB is always used; symbols.txt only adds mangled-name hints
+          SYM=""; [ -f symbols.txt ] && SYM="--symbols symbols.txt"
+          levipack-forge convert input.jar -o generated --mc-versions '${{ inputs.mc_versions }}' $SYM
+      - name: Set up Android NDK (uses the SDK preinstalled on the runner)
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          SDKM="$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n1 || true)"
+          echo "sdkmanager: ${SDKM:-not found}"
+          if [ -n "$SDKM" ]; then
+            yes | "$SDKM" --licenses > /dev/null 2>&1 || true
+            "$SDKM" "ndk;28.2.13676358" || echo "NDK 28.2 install failed, falling back to a preinstalled NDK"
+          fi
+          echo "Installed NDKs:"; ls "$ANDROID_HOME/ndk" || true
+          sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Build .levipack
+        working-directory: generated
+        shell: pwsh
+        run: ./scripts/package.ps1 -Abi ${{ inputs.abi }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: levipack
+          path: |
+            generated/build-*/*.levipack
+            generated/CONVERSION_REPORT.md
+            generated/MANUAL_WORK.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: generated-cpp-project
+          path: generated
