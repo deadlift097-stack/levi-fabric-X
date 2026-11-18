@@ -1,0 +1,364 @@
+==========================================================================================
+LEVIPACK LEARNINGS  -  how working .levipack mods are built, how they add textures,
+how they change player animations, and how their code runs inside Minecraft Bedrock
+==========================================================================================
+Source material studied: 66 files from "1_levipack_to_feed_to_ai_for_leaning.zip"
+(about 55 real mods/APIs) + the official "levilauncher-android-mod-template".
+Method: unzipped every pack, read every manifest/config/JSON, and inspected the ARM64
+.so files with nm / strings (symbol imports, exported names, embedded strings).
+Nothing was executed on a device. Binaries are mostly stripped, so function bodies and
+exact signatures were NOT read; anything marked (INFERRED) is a conclusion, not a fact
+read from a file.
+
+------------------------------------------------------------------------------------------
+1. WHAT A .levipack IS
+------------------------------------------------------------------------------------------
+* A .levipack is just a ZIP file renamed. LeviLauncher (Android) imports it and loads the
+  native library before Minecraft starts. (Some authors ship it as .levipack.zip or .zip.)
+* Everything is "preload-native": a native ARM64 shared library (lib<name>.so) plus data.
+* Two archive layouts exist and both work:
+    FLAT:      manifest.json, lib<name>.so, icon.png, config/, resources/   (at zip root)
+    FOLDERED:  <ModId>/manifest.json, <ModId>/lib<name>.so, ...             (one folder)
+  The official template builds the foldered form (package/<MOD_ID>/...).
+* Typical contents:
+    manifest.json            required. Describes the mod, names the entry .so.
+    lib<name>.so             required. The native code (arm64-v8a; template also does armeabi-v7a).
+    icon.png / mod_icon.png  optional icon shown in the launcher.
+    config/config.json       optional typed settings (default values)
+    config/config.schema.json optional JSON-Schema describing the settings (drives the UI)
+    resources/...            optional data (resource packs, fonts, textures, sounds)
+    LICENSE, notice/, README optional
+  Some old mods use a plain text config (.cfg) written at first run instead of config/.
+
+------------------------------------------------------------------------------------------
+2. manifest.json  (fields seen across all packs)
+------------------------------------------------------------------------------------------
+{
+  "type": "preload-native",            <- always this value
+  "name": "My Mod",                    <- display name
+  "author": "...",
+  "version": "1.0.0",
+  "description": "...",                <- optional
+  "entry": "libmymod.so",              <- file name of the native library, relative to manifest
+  "icon": "icon.png",                  <- optional
+  "minecraft_versions": ["1.26.*"],    <- wildcard version list; "*" = any; some use
+                                          "minecraft_version" or "game" (single string)
+  "overwrite_files":   ["icon.png"],   <- optional (INFERRED: files the launcher replaces on update)
+  "overwrite_folders": ["resources/minecraft_resource_packs"]  <- optional (INFERRED: same for folders)
+  "id": "...", "format_version": 1|2   <- optional extras some authors add
+}
+Official template manifest (manifest.json.in) only uses: type, name, author, version,
+entry, icon, minecraft_versions. That is the safe minimum.
+Version strings look like 1.26.52.3, 1.26.60.*, 26.60.* (both "1.26." and "26." forms are used).
+Library naming: entry is normally lib<LIBRARY_NAME>.so; the CMake target OUTPUT_NAME must match.
+
+------------------------------------------------------------------------------------------
+3. THE NATIVE LIBRARY: LIFECYCLE, REGISTRATION, API
+------------------------------------------------------------------------------------------
+Every mod exports   extern "C" PL_EXPORT ModRegistration* PLGetModRegistration()
+(created by the macro PL_REGISTER_MOD(Type, instance)). The launcher's "preloader"
+(github.com/LiteLDev/preloader-android, template pins tag 0.2.2) calls it and then runs
+the lifecycle:
+    load()    when the mod is loaded       (create dirs, read config)
+    enable()  before the game starts       (install hooks here)
+    disable() when the game closes         (remove hooks)
+    unload()  final cleanup
+Two API generations exist in the wild - match the SDK you compile against:
+  * NEW (official template, preloader 0.2.2):   bool load();  bool enable();  ...   (no args)
+        class uses ll::mod::NativeMod::current() in its constructor to get mSelf.
+  * OLD (vendored SDK in the command-registry package): bool load(pl::mod::ModContext&); ...
+        ModContext gives logger() and info().
+  Older binaries also export LeviMod_Load / PLMod_Load (legacy entry points).
+Public headers (template README): pl/Mod.hpp, pl/Config.hpp, pl/ModMenu.hpp, pl/Input.hpp,
+pl/memory/Hook.hpp, pl/memory/Patch.hpp, pl/memory/Signature.hpp, pl/Logger.hpp.
+IMPORTANT: a mod .cpp that calls its own helper namespace (e.g. hooks::installAll) must
+#include the header that declares it - the converter once generated MyMod.cpp without
+#include "mod/Hooks.h" and the Android build failed with "undeclared identifier 'hooks'".
+
+NativeMod helpers: getLogger(), getId(), getName(), getAuthor(), getVersion(),
+getModDir(), getDataDir(), getConfigDir(), getResourceDir().
+Runtime folders seen in strings:
+  /sdcard/Android/media/org.levimc.launcher/minecraft/com.mojang.minecraftpe/mods/<Mod>/
+        (mod files; config/ lives under it)
+  /storage/emulated/0/Android/media/org.levimc.launcher/...   (user drop folders: capes, sounds)
+  /sdcard/Android/media/org.levimc.launcher/minecraft/com.mojang.minecraftpe/levilamroid.log (log)
+
+Preloader functions that real mods import (verified with nm -D):
+  pl::mod::NativeMod::current()
+  pl::memory::resolveSignature(string_view signature, string_view moduleName) -> address
+  pl::memory::resolveSignatures(span<string>, module) -> map
+  pl::memory::resolveVtableFunction(string_view rttiName, size_t slot, string_view module)
+  pl::memory::hook(void* target, void* detour, void** original, HookPriority)  -> 0 = ok
+  pl::memory::unhook(target, detour)           (+ RAII class HookHandle)
+  HookPriority: Highest=0, High=100, Normal=200, Low=300, Lowest=400
+  pl::modmenu::registerModule(ModuleInfo const&) / unregisterModule(id)
+  pl::modmenu::setConfigSchemaJson(id, json) / clearConfigSchema(id) / setModuleEnabled(id,bool)
+  pl::input::TouchEvent  (touch input callbacks, used by ModMenuBE and on-screen buttons)
+  pl::config::ConfigFile<T>  (typed config: load()/value(); T is a plain struct)
+  pl::log::Logger (debug/info/warn/error with {fmt} formatting)
+Some mods skip the preloader and use their own hooking (4DSkin uses GlossHook + dlsym;
+DoABarrelRoll and AnimatedMojang use dlsym / GOT-slot resolution and signature scans).
+
+------------------------------------------------------------------------------------------
+4. HOW A NATIVE FEATURE IS APPLIED IN THE GAME  (the universal pattern)
+------------------------------------------------------------------------------------------
+Minecraft Bedrock is native C++ (libminecraftpe.so). It has no Java classes, so a mod
+changes behaviour by detouring game functions:
+  1. FIND the function:  resolveSignature("AB CD ?? EF ...", "libminecraftpe.so") - an
+     IDA-style byte pattern with ?? wildcards. Mods keep a signature per Minecraft build;
+     a signature that does not match = that feature is skipped (log line:
+     "Failed to resolve X" / "signature not found, related feature degraded").
+     Robust mods also fall back to resolveVtableFunction("<RTTI class name>", slot) and
+     cross-check both (JavaRegen refuses to hook when signature and vtable slot DISAGREE).
+  2. HOOK it:  pl::memory::hook(target, (void*)&myDetour, (void**)&g_original).
+  3. In the detour: read/modify arguments or the result, then call g_original(...) (or not).
+        e.g. DynamicFOV: detour LevelRendererPlayer::getFov -> return custom FOV
+             StackAll64Stacked: detour Item::getMaxStackSize -> return 64
+             BlockFrictions / JavaLeaves: change a block property / renderer layer
+  4. Keep settings in globals guarded by a mutex, load them from config at start,
+     save them from the ModMenu callback.
+  5. disable(): unhook everything.
+Rendering mods additionally hook the GL/EGL swap and draw with their own OpenGL ES shaders
+(ContainerScreensBlur, AnimatedMojang, ModMenuBE uses Dear ImGui 1.91 on GLES3).
+
+Game functions the studied mods hook (names read from strings; use them as search keys when
+you build signatures for a converted mod):
+  PLAYER / ENTITY    Actor::getPosition getPositionPrev getRotation getArmor getHurtTime
+                     getStatusFlag isInWater hasCategory getEntityTypeId getDimensionBlockSource
+                     ActorMovementProxy::isOnGround  LocalPlayer::normalTick / swing
+                     ServerPlayer::normalTick  Mob::getAttackAnim getBodyRotationPair
+                     HungerAttributeDelegate::tick
+  ANIMATION / MODEL  ModelPart::render isVisible updateBoneMatrices
+                     SkeletalHierarchy::buildBoneMatrices  BoneOrientation::computeWorldMatrix
+                     AnimationComponent::getBoneOrientations
+                     DataDrivenModel::renderAttachableInSlot  DataDrivenGeometry::submit getBoneSlot
+                     DataDrivenRenderer::render  DataDrivenRenderBatch::tryEnqueue
+                     HumanoidMobRenderer::renderChestPiece  ActorRenderDispatcher::render
+                     BaseActorRenderContext::getWorldMatrix  RenderController::getColor
+  SKIN               ClientSkinSystem::tick / createOrUpdate  ClientSkinInfoData::updateSkin
+                     setPersonaLodImage  SkinAdjustments::sanitizeSkinAlpha
+  CAMERA             LevelRendererPlayer::getFov / getStaticFov  GameRenderer::_prepareFrame
+  LEVEL / BLOCK      LevelRenderer::renderLevel  Level::spawnParticleEffect
+                     LevelRendererPlayer::addTerrainEffect  BlockTessellator::tessellate*
+                     BlockGraphics::getForBlock selectUV getTextureSlot  Block::getTintMethod
+                     BlockTint::getByMethod  BlockSource::getBlock  Block::isAir
+  ITEM / INVENTORY   Item::getFullItemName getSerializedName  ItemStackBase::getMaxStackSize
+                     ItemRenderer::render  CreativeItemRegistry::*  GameMode::startBuildBlock/buildBlock
+  RESOURCES          ResourcePackManager::_load  getPackStackIndexOfResource
+                     Pack::hasResource / getResource  ClientTexture::copy / destroy
+  NETWORK / COMMAND  LoopbackPacketSender::sendToServer (command rewrite API)
+                     CommandRequestPacket serialization, command autocomplete
+
+------------------------------------------------------------------------------------------
+5. CONFIG + MOD MENU
+------------------------------------------------------------------------------------------
+* config/config.json holds current values; config/config.schema.json is a JSON-Schema
+  ("properties" -> each has type, default, title, description, minimum/maximum).
+  The launcher/ModMenu reads the schema to draw sliders, toggles and text boxes.
+* Official template: struct ModConfig {int version=1; bool enabled=true; ...}; a small
+  generator program (src/config_generator.cpp, built for the host, not Android) reflects
+  the struct with boost::pfr + magic_enum and writes config.json + config.schema.json
+  which the packaging script copies into the levipack.
+* Nested objects are allowed (Fluidium has sections like "adaptive": {...}).
+* ModMenuBE (an in-game ImGui menu) lists every mod that called pl::modmenu::registerModule,
+  reads each module's schema (setConfigSchemaJson) and sends changes back through a callback
+  (std::function<void(string_view key, bool/str value)>). Mods that skip ModMenu simply
+  read a .cfg/.json from their config folder.
+
+------------------------------------------------------------------------------------------
+6. HOW THEY ADD TEXTURES / VISUAL ASSETS  (four distinct techniques)
+------------------------------------------------------------------------------------------
+A) BUNDLED BEDROCK RESOURCE PACK inside the levipack   <- most important, needs NO native code
+   Path inside the levipack:
+        resources/minecraft_resource_packs/<PackName>/
+            manifest.json              (normal Bedrock pack manifest: format_version 2,
+                                         header{name,description,uuid,version,min_engine_version},
+                                         modules[{type:"resources",uuid,version}],
+                                         optional "capabilities":["pbr"])
+            pack_icon.png
+            textures/..., particles/..., entity/..., animation_controllers/..., ui/..., materials/...
+   Proof it needs no code: "Better Boat Trails" has a 5 KB .so that only exports
+   PLGetModRegistration (no hooks at all) - the whole mod is the pack under
+   resources/minecraft_resource_packs/BetterBoatTrails/. The launcher/preloader stacks that
+   pack on top of the vanilla resources. Other examples:
+     * ContainerScreensBlur: ui/ui_common.json overrides namespace "common" element
+       "screen_background" (alpha 0) + the .so adds a GL blur. Manifest lists
+       "overwrite_folders": ["resources/minecraft_resource_packs"].
+     * Better Boat Trails: particles/*.json (custom particle effects "op:boat_wake_*"),
+       textures/op/*.png with matching *.texture_set.json (PBR: color + metalness_emissive_
+       roughness_subsurface values [0,0,180,24]), entity/op_player.entity.json,
+       animation_controllers/main.animation_controllers.json.
+     * NaturalEffect_Particles .mcpack: a standalone resource pack (particles/ materials/
+       textures/natural/particle/...) that the natural-effect mod expects to be present.
+   Rules that held in every working example: valid pack manifest.json with unique UUIDs;
+   min_engine_version at/below the game; texture paths are WITHOUT extension in JSON
+   ("textures/op/splash"), files are PNG/TGA; textures live under textures/<folder>/;
+   a pack-level "textures/*.texture_set.json" is used for PBR/Vibrant Visuals.
+
+B) AssetsAPI  (libAssetsAPI.so, a separate levipack other mods depend on)
+   Hooks the Android AAssetManager_open/AAsset_* functions, so ANY file the game reads from
+   its APK (assets/...) can be replaced, added, blocked or served from memory.
+   Exported C API (AssetsAPI.h):
+     assetsapi_add_/set_folder_resource_pack(apkPath, packPath, recursive)  replace a whole APK folder
+     assetsapi_add_/set_file_resource_pack(apkPath, packPath)               replace one file
+     assetsapi_add_/set_folder_external / file_external                     same, source is /storage/emulated/0
+     assetsapi_add_/set_memory_asset(apkPath, bytes, len)                   serve bytes built at runtime
+     assetsapi_add_/set_block_asset(apkPath, recursive, mode)               mode 0 = block (null), 1 = empty file
+     assetsapi_remove_asset(apkPath)  assetsapi_clear_rules()  assetsapi_reset_rules()
+   Real usage seen in the examples:
+     libresourcecore.so   -> assetsapi_set_folder_resource_pack for renderer/, skin_packs/,
+                             resource_packs/vanilla/cameras/ -> vanilla_cameras/, gui/
+     libexample_assetsapi_cpp.so -> set_block_asset("resource_packs/vanilla/__brarchive/ui.brarchive")
+                             (kills the packed UI archive) and set_memory_asset(
+                             "resource_packs/vanilla/ui/start_screen.json", <custom UI JSON in memory>)
+   Use this when a Java-style "replace vanilla texture X" must hit APK-internal files that a
+   normal resource pack cannot override (e.g. start screen, shaders/materials, cameras).
+
+C) THE MOD LOADS ITS OWN IMAGES AND DRAWS THEM WITH OPENGL
+   resources/ inside the levipack holds raw data, the .so reads it (stb_image / raw RGBA):
+     AnimatedMojang: resources/textures/ui/*.png, .hdr panoramas, title animation frames,
+                     data/*.mesh/.schem/.particles - decoded and rendered in GLES.
+     OfflineMusicPlayer: resources/ui/*.rgba + assets.json (width/height/bytes of each).
+     BlockFlow / Volt / WorldAnalysis: resources/minecraft.ttf (font for overlay UI).
+     BetterZoom: resources/spyglass_zoom_in.wav + config/button_*.png (touch-button art).
+   Good for HUD/overlay art that is NOT a Minecraft texture.
+
+D) USER-SUPPLIED FILES IN A DROP FOLDER
+   Cosmix auto-detects every PNG in /sdcard/Android/media/org.levimc.launcher/Cosmix Custom cape/
+   and lists it in the menu; natural-effect reads rain.wav, wind.wav, thunder.wav... from
+   .../org.levimc.launcher/sound/. Procedural 3D accessories (wings, halos) are generated in code.
+
+Choosing: Java mod ships block/item/entity textures, particles, models, UI JSON -> A.
+          Needs to override something inside the APK, or hide a vanilla asset -> B.
+          Own overlay UI/shader art -> C.
+
+------------------------------------------------------------------------------------------
+7. HOW THEY CHANGE PLAYER ANIMATIONS  (two layers)
+------------------------------------------------------------------------------------------
+LAYER 1 - DATA DRIVEN (resource pack; what "Better Boat Trails" does, no code)
+  The pack ships entity/op_player.entity.json whose identifier is "minecraft:player" - a
+  client_entity that REPLACES the vanilla player definition (the file is a full copy of the
+  vanilla one plus additions; INFERRED: entity files override whole, they are not merged).
+  Inside it:
+    description.animations   map: short name -> animation / controller id, e.g.
+                              "root": "controller.animation.player.root",
+                              "move.arms": "animation.player.move.arms", "sneaking": ...,
+                              "bow_and_arrow": "animation.humanoid.bow_and_arrow", ...
+                              plus the mod's own: "boat_wake.deep_water":
+                              "controller.animation.boat_wake.deep_water"
+    description.scripts.initialize / pre_animation   Molang that initialises and recomputes
+                              variables every frame (v.wake_speed from position deltas,
+                              q.is_riding_any_entity_of_type('minecraft:boat'), ...)
+    description.scripts.animate   the list that is actually played, each entry optionally
+                              conditioned: "root", {"boat_wake.deep_water": "!q.is_in_ui && !v.is_paperdoll"}
+    description.particle_effects  short name -> particle id ("fx_bow_wave": "op:boat_bow_wave")
+    materials / textures / geometry / render_controllers (unchanged vanilla keys)
+  animation_controllers/main.animation_controllers.json defines state machines:
+      "states": { "default": {"transitions":[{"splash":"v.is_deep_water && q.state_time > 0.1"}]},
+                  "splash":  {"particle_effects":[{"effect":"fx_splash_impact","pre_effect_script":"v.wake_offset_boost = 0.25;"}], "transitions":[...]}, ...}
+  and particles/*.json are normal Bedrock particle effects that the controller spawns.
+  => To add or change player animations/poses from a Java mod's Blockbench data:
+     * animations (.animation.json) go to animations/, controllers to animation_controllers/
+     * register each under description.animations of the player entity and add it to
+       scripts.animate with a Molang condition (swim -> query.is_swimming,
+       sprint -> query.is_sprinting, sneak -> query.is_sneaking, riding -> query.is_riding,
+       gliding -> query.is_gliding, sleeping -> query.is_sleeping, walk/idle -> speed queries)
+     * bones in custom animations must use VANILLA humanoid bone names (rightArm, leftArm,
+       rightLeg, leftLeg, head, body, rightItem, leftItem) or the bones are dropped
+     * animations that must ADD to vanilla need "override_previous_animation": false and a blend weight
+     * new geometry/attachables/textures are referenced from the same entity file
+
+LAYER 2 - NATIVE (hooks) - for what Molang cannot express
+  Cosmix (capes, 3D wings, halos, ears, ghost armor): hooks DataDrivenModel::renderAttachableInSlot,
+     HumanoidMobRenderer::renderChestPiece, ModelPart::updateBoneMatrices / isVisible,
+     Mob::getAttackAnim / getBodyRotationPair, LocalPlayer::swing / normalTick, Actor::getArmor /
+     getPosition / getRotation / isInWater; computes its own bone matrices and draws extra 3D
+     pieces anchored to the player's skeleton.
+  BetterFirstPerson: hooks the HEAD render (signature) so the local head/hands are hidden and
+     the camera is pinned to the head with per-state offsets (sneaking, elytra, swimming).
+  DoABarrelRoll: client-side elytra pitch/yaw/roll via camera/rotation overrides.
+  SkinOptimizer: hooks ClientSkinSystem / ClientSkinInfoData / ModelPart::render and
+     SkeletalHierarchy::buildBoneMatrices to downscale skins or hide the second layer.
+  4DSkin: GlossHook-based skin support. JavaRegen: HungerAttributeDelegate::tick (regen timing).
+  DynamicFOV: LevelRendererPlayer::getFov by movement state (sneak / sprint / swim / elytra).
+  Rule of thumb: pose/timing/particles -> LAYER 1; custom meshes, camera, skins, per-frame
+  maths, arbitrary game state -> LAYER 2.
+
+------------------------------------------------------------------------------------------
+8. BUILD / PACKAGING (official template)
+------------------------------------------------------------------------------------------
+  CMake 3.22 + Ninja + Android NDK 28.2.13676358, arm64-v8a (armeabi-v7a optional).
+  FetchContent pulls preloader-android 0.2.2, nlohmann_json 3.11.3, boost_pfr 1.88, magic_enum 0.9.7,
+  fmt 11.2.0. scripts/package.ps1 -Abi arm64-v8a:
+     1) host build of levi_config_generator -> generated-config/{config.json,config.schema.json}
+     2) Android build (C++20, c++_shared, -fvisibility=hidden, 16 KB page size link flag)
+     3) strip --strip-unneeded the .so
+     4) target levi_package assembles  package/<MOD_ID>/{manifest.json, lib*.so, config/, icon}
+        and zips it to  <MOD_ID>-<version>-<abi>.levipack
+  Only a "resources" folder next to CMakeLists.txt is copied into the package (the forge adds
+  that copy step). Anything else must be added to that copy step or it never reaches the zip.
+
+------------------------------------------------------------------------------------------
+9. CATALOGUE OF THE STUDIED PACKS  (name | what it is | technique)
+------------------------------------------------------------------------------------------
+Resource-pack driven (no / tiny code)
+  Better Boat Trails 1.2.4   5 KB .so + full resource pack: particles, PBR textures, player entity + animation controllers
+  ContainerScreensBlur       UI JSON override + GLES blur; manifest overwrite_folders
+  NaturalEffect_Particles    plain .mcpack (particles/materials/textures) used by Natural Effect
+  Fancy Crops                3D crop models/textures (assets embedded; only .so + icon in the zip)
+APIs / frameworks
+  AssetsAPI                  APK asset replacement (section 6B)         ModMenuBE  ImGui in-game menu for every mod
+  CustomCommandRegistryAPI   register commands by rewriting autocomplete + outgoing CommandRequestPacket (source + SDK .a)
+  CreativeInventoryAPI       creative-tab entries (CreativeItemRegistry hooks)   HelloCommandExample  minimal command mod
+Player / camera / animation
+  Cosmix, BetterFirstPerson, DoABarrelRoll, DynamicFOV, SkinOptimizer, 4DSkin, FreeCam, BetterZoom, Combat Hitbox, JavaRegen, Chestplate Swapper, GameMode Switcher
+Rendering / visuals / UI
+  AnimatedMojang, BackgroundVideo, BetterBlending, Bedrock Visual+, DynamicShadows, IriOptic (runs Java shader packs),
+  Floor Reflect, Wavy Water, Fluidium, levilod, Volt, chunk animation, BlockFlow, Betterleaves, JavaLeaves,
+  EnhancedBlockEntities, EntityOutline, EntityTag, HighlightInfo, Item Pickup Preview, ContainerPreview, SimpleNote,
+  WorldAnalysis, LHolo, Natural Effect (weather/sky), Physics (ragdolls/fractured blocks)
+Gameplay / utility
+  JustEnoughItems, QuickSwap, StackAll64Stacked, BlockFrictions, DiagonalConnections, SmoothHotbarSliding,
+  AutoTranslator, OfflineMusicPlayer, LogLens, Chess, webscreen (+ youtube-adblock.webplugin = plain JS userscript, not a levipack)
+Example binaries: libexample_assetsapi_cpp.so / _rust.so / libresourcecore.so / libLabeledContainerBlocks.so / libBackroom.so
+(bare .so files, not packaged; LabeledContainerBlocks hooks ChestBlockActor via resolveVtableFunction).
+
+------------------------------------------------------------------------------------------
+10. WHAT THIS MEANS FOR CONVERTING A JAVA (FABRIC) MOD TO A LEVIPACK
+------------------------------------------------------------------------------------------
+Map each Java feature to the matching technique:
+  Java asset (textures, models, particles, lang, sounds)  -> resources/minecraft_resource_packs/<Pack>/ (6A)
+  Java animation data (Blockbench .animation.json/.geo.json) -> LAYER 1 player entity + controllers (7)
+  Mixin on rendering / camera / player tick / items          -> native hook (sections 3-4 + symbol list)
+  Config screen (Mod Menu / Cloth)                           -> config.json + config.schema.json + ModMenu module (5)
+  Client commands                                            -> CustomCommandRegistryAPI rewrites or config fields
+  Fabric events (server start/stop)                          -> enable() / disable()
+  Replace/hide an APK-internal vanilla asset                 -> AssetsAPI (6B)
+
+FINDINGS ABOUT THE CURRENT levipack-forge CONVERTER (checked against this knowledge)
+  [1] BUG - the generated Bedrock resource pack is not packaged. The forge writes it to
+      <project>/resource_pack/ but the CMake package step only copies <project>/resources/.
+      Working packs ship it at  resources/minecraft_resource_packs/<PackName>/  (Better Boat
+      Trails, ContainerScreensBlur). Fix: write/copy the pack to
+      resources/minecraft_resource_packs/<PackName>/ (or add a copy_directory step for it).
+  [2] Make sure every generated .cpp includes the header of every namespace it uses
+      (the Hooks.h include fix). Keep API generation consistent with the SDK version the
+      template pins (new no-arg load()/enable() vs old ModContext& form).
+  [3] Player entity: ship a full client_entity "minecraft:player" (vanilla copy + additions),
+      reference new animations in description.animations and scripts.animate with conditions,
+      and use vanilla bone names (the forge's pack-merge/BONE_MAP already follow this idea).
+  [4] Prefer asking Minecraft versions as wildcard lists in manifest ("1.26.*") like the working packs.
+  [5] Signatures are per game build: generated hooks must fail soft (log + skip), never crash,
+      and should offer a vtable fallback (resolveVtableFunction) like JavaRegen does.
+  [6] Optionally add AssetsAPI as a dependency note when a Java mod replaces vanilla UI/APK assets.
+
+------------------------------------------------------------------------------------------
+11. LIMITS OF THIS ANALYSIS
+------------------------------------------------------------------------------------------
+* Binaries were not disassembled or run; behaviours come from symbols, strings, manifests and data files.
+* "overwrite_files/overwrite_folders" meaning, and that the launcher auto-activates
+  resources/minecraft_resource_packs/*, are inferred from working packs (Boat Trails proves the
+  pack alone is enough), not read from launcher source.
+* The exact layout of pl::modmenu::ModuleInfo / ConfigEntry was not recoverable from the binaries.
+* Game signatures are build-specific (examples target 1.26.4x - 1.26.62); none are reproduced here.
+==========================================================================================
